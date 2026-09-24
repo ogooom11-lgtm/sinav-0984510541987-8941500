@@ -1,0 +1,23 @@
+const {JSDOM}=require('jsdom');
+const fs=require('node:fs');
+const path=require('node:path');
+const assert=require('node:assert/strict');
+const root=path.resolve(__dirname,'..');
+const dom=new JSDOM(fs.readFileSync(path.join(root,'preview/index.html'),'utf8'),{url:'http://localhost:3000',runScripts:'dangerously'});
+const w=dom.window;
+w.scrollTo=()=>{};w.confirm=()=>true;
+w.fetch=async url=>({json:async()=>JSON.parse(fs.readFileSync(path.join(root,url),'utf8'))});
+const script=w.document.createElement('script');script.textContent=fs.readFileSync(path.join(root,'preview/app.js'),'utf8');w.document.body.appendChild(script);
+const e=s=>w.eval(s), $=s=>w.document.querySelector(s);
+setTimeout(()=>{try {
+ assert($('.hero'));
+ e("location.hash='practice';render()");$('#search').value='الطهارة';e("filter('practice')");assert(w.document.querySelectorAll('.question-row').length>0);
+ $('#search').value='zzzzz';e("filter('practice')");assert.equal(w.document.querySelectorAll('.question-row').length,0);
+ e("startQuiz('','boolean',false,1)");$('.option').click();$('#checkBtn').click();assert($('.feedback'));$('.quiz-actions .btn').click();assert($('.score'));assert.equal(e('state.attempts.length'),1);
+ e("startQuiz('','short',false,1)");$('#answerText').value='إجابة';$('#checkBtn').click();assert($('.feedback'));$('.quiz-actions .btn').click();assert($('.score'));assert.equal(e('state.attempts.length'),2);
+ e("startQuiz('','',true,5)");for(let i=0;i<5;i++){$('.option').click();$('#checkBtn').click()}assert($('.score'));assert.equal(e('state.attempts.length'),3);
+ e("save(1);location.hash='saved';render()");assert.equal(w.document.querySelectorAll('.question-row').length,1);assert(JSON.parse(w.localStorage.getItem('basira-v1')).saved.includes(1));
+ e("readBook('fiqh',3)");assert($('[role=dialog]'));assert($('.source-text').textContent.includes('الطهارة'));e('closeModal()');assert(!$('[role=dialog]'));
+ e("location.hash='progress';render()");assert($('#app').textContent.includes('سجل رحلتك'));
+ console.log('PASS: dashboard, search, practice, self-assessment, exam, save, local persistence, source reader, progress');dom.window.close();
+ }catch(err){console.error(err);dom.window.close();process.exitCode=1}},50);

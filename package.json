@@ -1,0 +1,6 @@
+{
+  "name": "basira-reference-preview",
+  "private": true,
+  "scripts": {"test": "node test/preview_test.cjs", "preview": "python3 tools/preview_server.py"},
+  "devDependencies": {"jsdom": "^29.0.0"}
+}

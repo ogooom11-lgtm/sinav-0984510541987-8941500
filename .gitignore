@@ -1,0 +1,6 @@
+.dart_tool/
+.packages
+build/
+.flutter-plugins*
+node_modules/
+__pycache__/

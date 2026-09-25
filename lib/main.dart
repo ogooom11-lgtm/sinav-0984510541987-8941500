@@ -1,206 +1,155 @@
 import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'question.dart';
+import 'question_types.dart';
+import 'learning_engine.dart';
+export 'question.dart';
 
-const green = Color(0xff185847);
-const muted = Color(0xff829087);
-const kinds = {'choice': 'اختيار من متعدد', 'boolean': 'صح أم خطأ', 'short': 'إجابة قصيرة'};
-void main() => runApp(const BasiraApp());
-
-class Question {
-  final int id, page;
-  final String book, type, prompt, answer;
-  final List<String> options;
-  Question(Map<String, dynamic> j)
-      : id = j['id'], page = j['page'], book = j['book'], type = j['type'],
-        prompt = j['prompt'], answer = j['answer'], options = List<String>.from(j['options']);
-}
-
-class BasiraApp extends StatelessWidget {
+const green=Color(0xff245b47), ink=Color(0xff243c34), muted=Color(0xff839087), lime=Color(0xffdcebaa);
+const topics=['الطهارة والعبادات','الصلاة','العقيدة'];
+const storageKey='basira-learning-v2';
+void main()=>runApp(const BasiraApp());
+class BasiraApp extends StatefulWidget {
   const BasiraApp({super.key});
-  @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'بصيرة', debugShowCheckedModeBanner: false,
-    locale: const Locale('ar'), supportedLocales: const [Locale('ar')],
-    localizationsDelegates: GlobalMaterialLocalizations.delegates,
-    theme: ThemeData(useMaterial3: true, scaffoldBackgroundColor: const Color(0xfff6f8f5),
-      colorScheme: ColorScheme.fromSeed(seedColor: green),
-      appBarTheme: const AppBarTheme(backgroundColor: Colors.white),
-      inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder()),
-      filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(backgroundColor: green, padding: const EdgeInsets.all(20)))),
-    home: const Dashboard(),
-  );
+  @override State<BasiraApp> createState()=>_BasiraAppState();
 }
-
-class Dashboard extends StatefulWidget {
-  const Dashboard({super.key});
-  @override
-  State<Dashboard> createState() => _DashboardState();
+class _BasiraAppState extends State<BasiraApp> {
+  @override Widget build(BuildContext context)=>MaterialApp(title:'بصيرة — تعلّم يثبت',debugShowCheckedModeBanner:false,locale:const Locale('ar'),supportedLocales:const [Locale('ar')],localizationsDelegates:GlobalMaterialLocalizations.delegates,
+    theme:ThemeData(fontFamily:'BasiraArabic',useMaterial3:true,scaffoldBackgroundColor:const Color(0xfff7f8f4),colorScheme:ColorScheme.fromSeed(seedColor:green),appBarTheme:const AppBarTheme(backgroundColor:Colors.white,foregroundColor:ink),
+      inputDecorationTheme:InputDecorationTheme(filled:true,fillColor:Colors.white,border:OutlineInputBorder(borderRadius:BorderRadius.circular(10),borderSide:const BorderSide(color:Color(0xffe6eae1)))),
+      filledButtonTheme:FilledButtonThemeData(style:FilledButton.styleFrom(backgroundColor:green,foregroundColor:Colors.white,padding:const EdgeInsets.symmetric(horizontal:24,vertical:18),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(9))))),home:const LearningHome());
 }
-
-class _DashboardState extends State<Dashboard> {
-  List<Map<String, dynamic>> books = [];
-  List<Question> questions = [];
-  List<int> saved = [];
-  List<Map<String, dynamic>> attempts = [];
+class LearningHome extends StatefulWidget { const LearningHome({super.key}); @override State<LearningHome> createState()=>_LearningHomeState(); }
+class _LearningHomeState extends State<LearningHome> {
+  final engine=LearningEngine();
+  List<Question> bank=[];
+  Map<int,Question> byId={};
+  Map<String,dynamic> data={'schema':2,'saved':<int>[],'attempts':<dynamic>[],'memory':<String,dynamic>{},'orders':<String,dynamic>{},'settings':<String,dynamic>{'large':false,'motion':true,'focus':false,'goal':10},'active':null};
+  Map<String,dynamic> coverage={};
   SharedPreferences? prefs;
-  bool loading = true;
+  Map<String,dynamic>? session;
   String? error;
-  int tab = 0;
-  String search = '', bookFilter = '', typeFilter = '';
-  final labels = ['الرئيسية', 'مكتبة الكتب', 'بنك الأسئلة', 'الاختبارات', 'تقدّمي وإنجازاتي', 'أسئلتي المحفوظة'];
-  final icons = [Icons.home_outlined, Icons.menu_book_outlined, Icons.quiz_outlined, Icons.assignment_outlined, Icons.insights_outlined, Icons.bookmark_outline];
-  @override
-  void initState() { super.initState(); load(); }
+  bool loading=true;
+  int tab=0,listPage=0;
+  String search='',section='',type='',examSection='';
+  int examCount=10;
+  final inputController=TextEditingController();
+  final labels=['مساحتي','اكتشف التدريبات','اختبر معرفتك','فرصتي الثانية','رحلة تقدّمي','أسئلتي المحفوظة'];
+  final icons=[Icons.home_outlined,Icons.auto_awesome_outlined,Icons.fact_check_outlined,Icons.refresh_rounded,Icons.insights_outlined,Icons.bookmark_outline];
+  Map<String,dynamic> get memory=>Map<String,dynamic>.from(data['memory']);
+  List<int> get saved=>List<int>.from(data['saved']);
+  List<dynamic> get attempts=>data['attempts'];
+  Map<String,dynamic> get settings=>data['settings'];
+  List<int> get pending=>engine.pending(memory).where((id)=>byId.containsKey(id)&&!byId[id]!.reviewOnly).toList();
+  Question get q=>byId[(session!['ids'] as List)[session!['index']]]!;
+  List<String> get values=>List<String>.from(session!['selected']);
+  bool get ready { final v=session!['selected']; return v is List ? v.isNotEmpty&&v.every((x)=>x.toString().trim().isNotEmpty) : v.toString().trim().isNotEmpty; }
+  bool get revealed=>session!['revealed']==true;
+  bool get focus=>session!=null&&settings['focus']==true;
+  @override void initState(){super.initState();load();}
+  @override void dispose(){inputController.dispose();super.dispose();}
   Future<void> load() async {
     try {
-      final raw = await rootBundle.loadString('assets/data/books.json');
-      final bank = await rootBundle.loadString('assets/data/questions.json');
-      prefs = await SharedPreferences.getInstance();
-      books = List<Map<String, dynamic>>.from(jsonDecode(raw));
-      questions = (jsonDecode(bank) as List).map((q) => Question(q)).toList();
+      bank=(jsonDecode(await rootBundle.loadString('assets/data/questions.json')) as List).map((x)=>Question(x)).toList();
+      byId={for(final q in bank) q.id:q};coverage=jsonDecode(await rootBundle.loadString('assets/data/coverage.json'));
+      prefs=await SharedPreferences.getInstance();
       try {
-        saved = List<int>.from(jsonDecode(prefs!.getString('saved') ?? '[]'));
-        attempts = List<Map<String, dynamic>>.from(jsonDecode(prefs!.getString('attempts') ?? '[]'));
-      } catch (_) { saved = []; attempts = []; }
-    } catch (_) { error = 'تعذّر تحميل المحتوى. حاول إعادة فتح التطبيق.'; }
-    if (mounted) setState(() => loading = false);
+        final raw=prefs!.getString(storageKey);
+        if(raw!=null){final stored=jsonDecode(raw);data={...data,...Map<String,dynamic>.from(stored)};}
+        else {
+          final oldSaved=prefs!.getString('${coverage['datasetId']}.saved');
+          final oldAttempts=prefs!.getString('${coverage['datasetId']}.attempts');
+          if(oldSaved!=null)data['saved']=jsonDecode(oldSaved);
+          if(oldAttempts!=null){data['attempts']=jsonDecode(oldAttempts);final m=memory;for(final a in attempts){for(final x in a['answers']){engine.record(m,x['id'],x['correct'],a['date'],now:DateTime.parse(a['date']).millisecondsSinceEpoch);}}data['memory']=m;}
+        }
+        data['saved']=saved.where(byId.containsKey).toList();
+        data['attempts']=attempts.where((a)=>a['answers'] is List&&(a['answers'] as List).isNotEmpty&&(a['answers'] as List).every((x)=>byId.containsKey(x['id'])&&x['correct'] is bool)).toList();
+        if(data['active']!=null && !(data['active']['ids'] as List).every(byId.containsKey))data['active']=null;
+      } catch(_){data['active']=null;data['saved']=<int>[];data['attempts']=[];data['memory']=<String,dynamic>{};}
+      await persist();
+    } catch(_){error='تعذّر تحميل مساحة التعلّم. حاول مجددًا.';}
+    if(mounted)setState(()=>loading=false);
   }
-  Map<String, dynamic> book(String id) => books.firstWhere((b) => b['id'] == id);
-  Future<void> toggle(int id) async {
-    setState(() => saved.contains(id) ? saved.remove(id) : saved.add(id));
-    await prefs?.setString('saved', jsonEncode(saved));
+  Future<void> persist() async { try {await prefs?.setString(storageKey,jsonEncode(data));} catch(_){if(mounted)message('تعذّر الحفظ المحلي. تحقق من مساحة الجهاز.');} }
+  void message(String text){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(text),behavior:SnackBarBehavior.floating));}
+  Future<void> checkpoint() async {data['active']=session==null?null:jsonDecode(jsonEncode(session));await persist();}
+  void record(int id,bool correct){final m=memory;engine.record(m,id,correct,session!['id']);data['memory']=m;}
+  void toggleSave(int id){final a=saved;if(a.contains(id)){a.remove(id);}else{a.add(id);}setState(()=>data['saved']=a);persist();}
+  void navigate(int i){if(session!=null){checkpoint();session=null;}setState((){tab=i;search='';section='';type='';listPage=0;});}
+  Future<void> start({int count=10,String topic='',String kind='',bool exam=false,bool review=false,List<int>? ids}) async {
+    if(data['active']!=null&&session==null){final replace=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('بدء جلسة جديدة؟'),content:const Text('ستستبدل الجلسة غير المكتملة. تبقى إجاباتك المسجلة وأخطاؤك محفوظة.'),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),TextButton(onPressed:()=>Navigator.pop(c,true),child:const Text('ابدأ'))]));if(replace!=true)return;}
+    final list=engine.plan(bank,memory,count:count,section:topic,type:kind,exam:exam,review:review,ids:ids);
+    if(list.isEmpty){if(mounted)message('لا توجد أسئلة مطابقة الآن.');return;}
+    setState((){session={'id':'${DateTime.now().microsecondsSinceEpoch}','ids':list.map((q)=>q.id).toList(),'index':0,'exam':exam,'review':review,'answers':<dynamic>[],'selected':'','revealed':false,'hints':0,'options':<String>[]};prepare();});
+    await checkpoint();
   }
-  List<dynamic> get answers => attempts.expand((a) => a['answers'] as List).toList();
-  int get accuracy => answers.isEmpty ? 0 : (answers.where((a) => a['correct'] == true).length / answers.length * 100).round();
-  void go(int i) => setState(() { tab = i; search = ''; bookFilter = ''; typeFilter = ''; });
-  Future<void> start({String bookId = '', String type = '', bool exam = false, int count = 5, List<int>? ids}) async {
-    final pool = questions.where((q) => (bookId.isEmpty || q.book == bookId) && (type.isEmpty || q.type == type) && (!exam || q.type != 'short') && (ids == null || ids.contains(q.id))).toList()..shuffle(Random());
-    if (pool.isEmpty) return;
-    final result = await Navigator.push<Map<String, dynamic>>(context, MaterialPageRoute(builder: (_) => QuizPage(
-      questions: pool.take(count).toList(), exam: exam, books: books, saved: saved, onSave: toggle,
+  void prepare(){
+    final current=q,m=q.mode;session!['revealed']=false;session!['hints']=0;inputController.clear();
+    final old=List<String>.from(data['orders']['${q.id}']??[]);
+    final options=engine.varied(current.options,old);
+    if(m=='single'&&old.isNotEmpty&&options.indexOf(q.answer)==old.indexOf(q.answer)&&options.length>1)options.add(options.removeAt(0));
+    if(m=='multi'&&old.length==options.length&&old.isNotEmpty&&List.generate(options.length,(i)=>i).every((i)=>q.correct.contains(options[i])==q.correct.contains(old[i])))options.add(options.removeAt(0));
+    session!['options']=options;
+    if(m=='single'||m=='multi')data['orders']['${q.id}']=options;
+    session!['selected']=(m=='multi'||m=='order'||m=='match'||m=='group')?<String>[]:'';
+    if(m=='order'){final list=engine.shuffled(q.options);if(evaluateAnswer(q,list))list.add(list.removeAt(0));session!['selected']=list;}
+    if(m=='match'){session!['selected']=List<String>.filled(q.pairs.length,'');session!['options']=engine.varied(q.pairs.map((p)=>p['right'] as String).toList(),old);data['orders']['${q.id}']=session!['options'];session!['pairOrder']=engine.shuffled(List.generate(q.pairs.length,(i)=>i));}
+    if(m=='group'){session!['selected']=List<String>.filled(q.parts.length,'');session!['partOrder']=engine.shuffled(List.generate(q.parts.length,(i)=>i));}
+  }
+  void resume(){setState((){session=Map<String,dynamic>.from(jsonDecode(jsonEncode(data['active'])));inputController.text=session!['selected'] is String?session!['selected']:'';});}
+  void pause(){checkpoint();setState(()=>session=null);message('حُفظت جلستك. يمكنك العودة متى أحببت.');}
+  void check(){if(!ready)return;if(session!['exam']==true){next(q.selfGraded?null:evaluateAnswer(q,session!['selected']));}else{setState(()=>session!['revealed']=true);checkpoint();}}
+  void next(bool? correct,{bool skipped=false}){
+    final current=q;
+    if(correct!=null)record(current.id,correct);
+    setState((){
+      (session!['answers'] as List).add({'id':current.id,'selected':jsonDecode(jsonEncode(session!['selected'])),'correct':correct,'self':current.selfGraded,'hints':session!['hints'],'skipped':skipped});
+      session!['index']++;
+      if(session!['index']<(session!['ids'] as List).length)prepare();
+    });checkpoint();finishIfReady();
+  }
+  void assess(int index,bool correct){final a=session!['answers'][index];if(a['correct']!=null)return;record(a['id'],correct);setState(()=>a['correct']=correct);checkpoint();finishIfReady();}
+  Map<String,dynamic>? lastResult;
+  void finishIfReady(){if(session==null||session!['index']<(session!['ids'] as List).length)return;if((session!['answers'] as List).any((a)=>a['correct']==null))return;
+    final a={'id':session!['id'],'date':DateTime.now().toIso8601String(),'exam':session!['exam'],'answers':session!['answers']};
+    setState((){if(!attempts.any((v)=>v['id']==a['id']))attempts.add(a);lastResult=a;data['active']=null;session=null;tab=6;});persist();
+  }
+  Widget panel(Widget child,{Color color=Colors.white})=>Container(width:double.infinity,padding:const EdgeInsets.all(23),decoration:BoxDecoration(color:color,borderRadius:BorderRadius.circular(16),border:Border.all(color:const Color(0xffe6eae1))),child:child);
+  Widget heading(String title,String subtitle)=>Padding(padding:const EdgeInsets.only(bottom:25),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(title,style:const TextStyle(fontSize:29,fontWeight:FontWeight.w600,color:ink)),const SizedBox(height:8),Text(subtitle,style:const TextStyle(color:muted))]));
+  Widget note(String text)=>Container(width:double.infinity,margin:const EdgeInsets.symmetric(vertical:14),padding:const EdgeInsets.all(15),decoration:BoxDecoration(color:const Color(0xfff1f4e9),borderRadius:BorderRadius.circular(9)),child:Text(text,style:const TextStyle(fontSize:12,color:Color(0xff82916e),height:1.9)));
+  Widget nav()=>Container(width:230,color:Colors.white,padding:const EdgeInsets.all(18),child:Column(children:[const Padding(padding:EdgeInsets.symmetric(vertical:25),child:Row(mainAxisAlignment:MainAxisAlignment.center,children:[Icon(Icons.auto_awesome,color:green,size:34),SizedBox(width:12),Text('بصيرة',style:TextStyle(fontSize:34,fontWeight:FontWeight.bold,color:green))])),const Text('تعلّم يثبت، وأثر يبقى',style:TextStyle(color:muted,fontSize:12)),const SizedBox(height:35),...List.generate(labels.length,(i)=>Padding(padding:const EdgeInsets.only(bottom:7),child:ListTile(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(10)),selectedTileColor:const Color(0xffedf3e9),selected:tab==i&&session==null,leading:Icon(icons[i]),title:Text(labels[i],style:const TextStyle(fontSize:13)),trailing:i==3&&pending.isNotEmpty?Text('${pending.length}'):null,onTap:(){navigate(i);if(MediaQuery.sizeOf(context).width<950)Navigator.pop(context);}))),const Spacer(),note('الخطأ ليس نهاية الطريق.\nهو إشارة للمعلومة التي تستحق فرصة أخرى.'),TextButton.icon(onPressed:preferences,icon:const Icon(Icons.tune),label:const Text('اضبط مساحة راحتك'))]));
+  @override Widget build(BuildContext context){final wide=MediaQuery.sizeOf(context).width>=950;final scale=settings['large']==true?1.15:1.0;
+    return MediaQuery(data:MediaQuery.of(context).copyWith(textScaler:TextScaler.linear(scale),disableAnimations:settings['motion']==false),child:PopScope(canPop:session==null,onPopInvokedWithResult:(didPop,result){if(!didPop&&session!=null)pause();},child:Scaffold(
+      appBar:focus?null:AppBar(title:Text(session!=null?'وقت التعلّم':tab<6?labels[tab]:'نتيجة المحاولة',style:const TextStyle(fontSize:17)),actions:[IconButton(onPressed:preferences,tooltip:'إعدادات الراحة',icon:const Icon(Icons.tune))]),
+      drawer:wide||focus?null:Drawer(child:SafeArea(child:nav())),
+      body:Row(children:[if(wide&&!focus)nav(),Expanded(child:loading?const Center(child:CircularProgressIndicator()):error!=null?Center(child:Text(error!)):SingleChildScrollView(padding:EdgeInsets.all(wide?35:18),child:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:1150),child:AnimatedSwitcher(duration:settings['motion']==false?Duration.zero:const Duration(milliseconds:250),child:KeyedSubtree(key:ValueKey(session!=null?'${session!['id']}-${session!['index']}':'tab-$tab'),child:session!=null?quiz():content()))))))])
     )));
-    if (result != null && mounted) {
-      setState(() { attempts.add(result); tab = 4; });
-      await prefs?.setString('attempts', jsonEncode(attempts));
-    }
   }
-  Widget nav() => Container(width: 230, color: Colors.white, padding: const EdgeInsets.all(18), child: Column(children: [
-    const Padding(padding: EdgeInsets.symmetric(vertical: 28), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.auto_awesome, color: green, size: 34), SizedBox(width: 12), Text('بصيرة', style: TextStyle(fontSize: 34, fontWeight: FontWeight.bold, color: green))])),
-    const Text('رحلتك إلى معرفة أعمق', style: TextStyle(color: muted)), const SizedBox(height: 35),
-    for (int i = 0; i < labels.length; i++) Padding(padding: const EdgeInsets.only(bottom: 7), child: ListTile(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), selectedTileColor: const Color(0xffeaf2ed), selected: tab == i, leading: Icon(icons[i]), title: Text(labels[i], style: const TextStyle(fontSize: 13)), onTap: () { go(i); if (MediaQuery.sizeOf(context).width < 950) Navigator.pop(context); })),
-    const Spacer(), const Text('قليلٌ دائم، خيرٌ من كثيرٍ منقطع', style: TextStyle(color: muted)), const SizedBox(height: 30),
-  ]));
-  @override
-  Widget build(BuildContext context) {
-    final wide = MediaQuery.sizeOf(context).width >= 950;
-    return Scaffold(appBar: AppBar(title: Text('بصيرة  /  ${labels[tab]}', style: const TextStyle(fontSize: 17))),
-      drawer: wide ? null : Drawer(child: SafeArea(child: nav())),
-      body: Row(children: [if (wide) nav(), Expanded(child: loading ? const Center(child: CircularProgressIndicator()) : error != null ? Center(child: Text(error!)) : SingleChildScrollView(padding: EdgeInsets.all(wide ? 36 : 18), child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 1200), child: content()))))]));
+  int get todayDone {final now=DateTime.now();return memory.values.where((v){final d=DateTime.fromMillisecondsSinceEpoch(v['last']);return d.year==now.year&&d.month==now.month&&d.day==now.day;}).length;}
+  int get accuracy {final a=attempts.expand((a)=>a['answers'] as List).toList();return a.isEmpty?0:(a.where((x)=>x['correct']==true).length/a.length*100).round();}
+  Widget stats()=>Padding(padding:const EdgeInsets.symmetric(vertical:22),child:Wrap(spacing:14,runSpacing:14,children:[for(final a in [['${bank.where((q)=>!q.reviewOnly).length}','صيغة سؤال تنتظرك'],['${memory.length}','سؤالًا تدربت عليه'],['${pending.length}','فرصة جديدة للتثبيت'],['$accuracy٪','دقة جلساتك المكتملة']]) SizedBox(width:200,child:panel(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(a[0],style:const TextStyle(fontSize:27,color:green)),Text(a[1],style:const TextStyle(fontSize:12,color:muted))])))]));
+  Widget content(){if(tab==0)return home();if(tab==1||tab==3||tab==5)return listView();if(tab==2)return examView();if(tab==6&&lastResult!=null)return resultView(lastResult!);return progress();}
+  Widget home()=>Column(crossAxisAlignment:CrossAxisAlignment.start,children:[heading('أهلًا بك في بصيرة ✧','خطوة صغيرة اليوم، ومعرفة تبقى معك غدًا.'),if(data['active']!=null)Padding(padding:const EdgeInsets.only(bottom:18),child:panel(Row(children:[const Expanded(child:Text('لديك جلسة غير مكتملة. أكمل من حيث توقفت.')),TextButton(onPressed:resume,child:const Text('متابعة ←'))]),color:const Color(0xffeef4df))),panel(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('تعلّم على مهل، وتقدّم بثقة',style:TextStyle(color:lime,fontSize:12)),const SizedBox(height:15),const Text('المعرفة لا تأتي دفعةً واحدة.\nتأتي سؤالًا بعد سؤال.',style:TextStyle(color:Colors.white,fontSize:31,fontWeight:FontWeight.w500,height:1.6)),const SizedBox(height:14),const Text('تدريبات قصيرة، أفكار بطرق مختلفة، وفرصة جديدة لكل خطأ.',style:TextStyle(color:Color(0xffc4d7bd))),const SizedBox(height:24),Wrap(spacing:15,runSpacing:12,children:[FilledButton(style:FilledButton.styleFrom(backgroundColor:lime,foregroundColor:ink),onPressed:()=>start(),child:const Text('ابدأ رحلة اليوم ←')),OutlinedButton(onPressed:()=>navigate(1),child:const Text('اختر طريقتك',style:TextStyle(color:Colors.white)))])]),color:const Color(0xff234f40)),stats(),heading('من أين نبدأ اليوم؟','ثلاثة مسارات، وكل مسار يفتح لك بابًا للفهم'),LayoutBuilder(builder:(context,c)=>Wrap(spacing:15,runSpacing:15,children:topics.asMap().entries.map((e)=>SizedBox(width:c.maxWidth>700?(c.maxWidth-30)/3:c.maxWidth,child:panel(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Icon([Icons.water_drop_outlined,Icons.mosque_outlined,Icons.auto_awesome_outlined][e.key],size:37,color:green),const SizedBox(height:20),Text(e.value,style:const TextStyle(fontSize:21,fontWeight:FontWeight.w600)),Text('${bank.where((q)=>q.section==e.value&&!q.reviewOnly).length} صيغة تدريب',style:const TextStyle(color:muted)),const SizedBox(height:20),TextButton(onPressed:()=>start(topic:e.value),child:const Text('ابدأ المسار ←'))])))).toList())),const SizedBox(height:25),panel(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('لن نترك معلومة خلفنا.',style:TextStyle(fontSize:23,fontWeight:FontWeight.w600)),note('${pending.length} سؤالًا يحتاج فرصة جديدة. تعود تلقائيًا في الاختبار القادم، حتى تجيب مرتين بشكل صحيح في جلستين مختلفتين.'),FilledButton(onPressed:()=>pending.isEmpty?start(exam:true):start(review:true),child:Text(pending.isEmpty?'اختبار قصير ←':'راجع فرصك الثانية ←'))]),color:const Color(0xfff1f3e8)),const SizedBox(height:25),panel(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('24 طريقة للتعلّم',style:TextStyle(fontSize:22)),const SizedBox(height:18),Wrap(spacing:10,runSpacing:10,children:kinds.entries.map((e)=>OutlinedButton(onPressed:()=>start(kind:e.key,count:5),child:Text(e.value))).toList()),const SizedBox(height:22),Text('هدفك اليومي $todayDone / ${settings['goal']}'),const SizedBox(height:10),TweenAnimationBuilder<double>(tween:Tween(begin:0,end:(todayDone/(settings['goal'] as num)).clamp(0,1).toDouble()),duration:settings['motion']==false?Duration.zero:const Duration(milliseconds:600),builder:(c,v,_)=>LinearProgressIndicator(value:v,color:const Color(0xffa3bc79),backgroundColor:const Color(0xffe8edde)))]))]);
+  List<Question> get filtered=>bank.where((q)=>!q.reviewOnly&&(tab!=5||saved.contains(q.id))&&(tab!=3||pending.contains(q.id))&&(section.isEmpty||q.section==section)&&(type.isEmpty||q.type==type)&&normalizeAnswer(q.prompt).contains(normalizeAnswer(search))).toList();
+  Widget listView(){final list=filtered, pages=(list.length/16).ceil().clamp(1,10000).toInt();if(listPage>=pages)listPage=pages-1;return Column(crossAxisAlignment:CrossAxisAlignment.start,children:[heading(labels[tab],tab==3?'أسئلتك المعلّقة تعود في الاختبار القادم تلقائيًا.':'اختر مسارك ونوع التدريب الذي يناسبك.'),if(tab==3&&pending.isNotEmpty)FilledButton(onPressed:()=>start(review:true),child:const Text('ابدأ فرصتك الثانية ←')),const SizedBox(height:18),TextField(key:ValueKey('search-$tab'),decoration:const InputDecoration(hintText:'ابحث عن مفهوم أو سؤال…',prefixIcon:Icon(Icons.search)),onChanged:(v)=>setState((){search=v;listPage=0;})),const SizedBox(height:14),Wrap(spacing:18,children:[DropdownButton<String>(value:section,items:[const DropdownMenuItem(value:'',child:Text('كل المسارات')),...topics.map((v)=>DropdownMenuItem(value:v,child:Text(v)))],onChanged:(v)=>setState((){section=v!;listPage=0;})),DropdownButton<String>(value:type,items:[const DropdownMenuItem(value:'',child:Text('كل الأنواع')),...kinds.entries.map((e)=>DropdownMenuItem(value:e.key,child:Text(e.value)))],onChanged:(v)=>setState((){type=v!;listPage=0;}))]),Text('${list.length} صيغة تدريب · الصفحة ${listPage+1} من $pages',style:const TextStyle(color:muted)),const SizedBox(height:16),if(list.isEmpty)panel(const Text('لا توجد أسئلة هنا الآن. غيّر الاختيارات أو ابدأ تدريبًا جديدًا.')), ...list.skip(listPage*16).take(16).map((q)=>Padding(padding:const EdgeInsets.only(bottom:14),child:panel(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('${kinds[q.type]} · ${q.section}',style:const TextStyle(color:muted,fontSize:12)),const SizedBox(height:15),Text(q.prompt,style:const TextStyle(fontSize:18,height:1.8)),const SizedBox(height:14),Wrap(spacing:10,children:[FilledButton(onPressed:()=>start(ids:[q.id],count:1),child:const Text('حلّ السؤال ←')),IconButton(tooltip:'حفظ السؤال',onPressed:()=>toggleSave(q.id),icon:Icon(saved.contains(q.id)?Icons.bookmark:Icons.bookmark_outline))]),if(tab==3)Text('إجابات التثبيت ${memory['${q.id}']?['streak']??0} / 2',style:const TextStyle(color:muted,fontSize:12))])))),if(pages>1)Row(mainAxisAlignment:MainAxisAlignment.center,children:[TextButton(onPressed:listPage>0?()=>setState(()=>listPage--):null,child:const Text('السابق')),Text('${listPage+1} / $pages'),TextButton(onPressed:listPage<pages-1?()=>setState(()=>listPage++):null,child:const Text('التالي'))])]);}
+  Widget examView()=>Column(crossAxisAlignment:CrossAxisAlignment.start,children:[heading('اختبار يفهم رحلتك','لا مؤقّت يضغط عليك. خذ وقتك، ثم اكتشف أين أصبحت.'),panel(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('أسئلة جديدة، وفرصة ثانية لأخطائك',style:TextStyle(fontSize:23)),const SizedBox(height:20),Wrap(spacing:20,children:[DropdownButton<String>(value:examSection,items:[const DropdownMenuItem(value:'',child:Text('مزيج من كل المسارات')),...topics.map((s)=>DropdownMenuItem(value:s,child:Text(s)))],onChanged:(v)=>setState(()=>examSection=v!)),DropdownButton<int>(value:examCount,items:[5,10,20].map((n)=>DropdownMenuItem(value:n,child:Text('$n أسئلة'))).toList(),onChanged:(v)=>setState(()=>examCount=v!))]),note('سيضم الاختبار كل الأسئلة المعلّقة (${pending.length}) حتى لو تجاوزت العدد المختار أو كانت من مسار آخر. الأسئلة المفتوحة تقيّمها ذاتيًا في النهاية؛ لا نصحح فهمك بمطابقة الكلمات.'),FilledButton(onPressed:()=>start(exam:true,topic:examSection,count:examCount),child:const Text('أنا جاهز، لنبدأ ←'))]))]);
+  void setInput(String value,{int? index}){setState((){if(index==null){session!['selected']=value;}else{final v=values;v[index]=value;session!['selected']=v;}});checkpoint();}
+  void choose(String value){if(revealed)return;setState((){if(q.mode=='multi'){final v=values;if(v.contains(value)){v.remove(value);}else{v.add(value);}session!['selected']=v;}else{session!['selected']=value;}});checkpoint();}
+  void move(int index,int delta){final v=values,j=index+delta;if(j<0||j>=v.length||revealed)return;final item=v.removeAt(index);v.insert(j,item);setState(()=>session!['selected']=v);checkpoint();}
+  Widget controls(){final m=q.mode,options=List<String>.from(session!['options']);
+    if(m=='single')return Column(children:options.map((o)=>Padding(padding:const EdgeInsets.only(bottom:12),child:OutlinedButton(style:OutlinedButton.styleFrom(backgroundColor:session!['selected']==o?const Color(0xffeef4e5):Colors.white,padding:const EdgeInsets.all(18),side:BorderSide(color:session!['selected']==o?green:const Color(0xffe6eae1))),onPressed:revealed?null:()=>choose(o),child:Align(alignment:Alignment.centerRight,child:Text(o,style:const TextStyle(height:1.8,fontSize:16)))))).toList());
+    if(m=='multi')return Column(children:[note('اختر المجموعة الصحيحة دون إضافات. لا توجد نقاط جزئية.'),...options.map((o)=>CheckboxListTile(title:Text(o),value:values.contains(o),onChanged:revealed?null:(_)=>choose(o)))]);
+    if(m=='order')return Column(children:[note('حرّك الأجزاء من الأعلى إلى الأسفل.'),...values.asMap().entries.map((e)=>Card(child:Padding(padding:const EdgeInsets.all(12),child:Row(children:[Expanded(child:Text('${e.key+1}. ${e.value}')),IconButton(tooltip:'للأعلى',onPressed:revealed||e.key==0?null:()=>move(e.key,-1),icon:const Icon(Icons.arrow_upward)),IconButton(tooltip:'للأسفل',onPressed:revealed||e.key==values.length-1?null:()=>move(e.key,1),icon:const Icon(Icons.arrow_downward))]))))]);
+    if(m=='match')return Column(children:[for(final i in session!['pairOrder']) Padding(padding:const EdgeInsets.only(bottom:18),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Text(q.pairs[i]['left'],style:const TextStyle(fontWeight:FontWeight.w600)),DropdownButton<String>(isExpanded:true,value:values[i].isEmpty?null:values[i],hint:const Text('اختر المعنى المناسب…'),items:options.map((o)=>DropdownMenuItem(value:o,child:Text(o,maxLines:2,overflow:TextOverflow.ellipsis))).toList(),onChanged:revealed?null:(v)=>setInput(v!,index:i))]))]);
+    if(m=='group')return Column(children:[note('نقطة واحدة عند صحة كل الإجابات.'),for(final i in session!['partOrder'])Padding(padding:const EdgeInsets.only(bottom:20),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Text(q.parts[i]['prompt'],style:const TextStyle(height:1.8)),const SizedBox(height:8),TextFormField(key:ValueKey('${session!['id']}-${q.id}-$i'),initialValue:values[i],enabled:!revealed,decoration:const InputDecoration(hintText:'إجابتك'),onChanged:(v)=>setInput(v,index:i))]))]);
+    return Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(q.selfGraded?'اكتب فهمك ثم قارنه بالمرجع.':'اكتب الكلمة المحددة دون شرح إضافي.',style:const TextStyle(color:muted,fontSize:12)),const SizedBox(height:12),TextField(controller:inputController,enabled:!revealed,maxLines:q.selfGraded?4:2,decoration:const InputDecoration(hintText:'خذ وقتك… واكتب إجابتك هنا'),onChanged:(v)=>setInput(v))]);
   }
-  Widget box(Widget child, {Color color = Colors.white}) => Container(width: double.infinity, padding: const EdgeInsets.all(22), decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xffe5eae5))), child: child);
-  Widget heading(String title, String sub) => Padding(padding: const EdgeInsets.only(bottom: 24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w600)), const SizedBox(height: 8), Text(sub, style: const TextStyle(color: muted))]));
-  Widget library() => LayoutBuilder(builder: (context, c) => Wrap(spacing: 18, runSpacing: 18, children: books.asMap().entries.map((entry) {
-    final b = entry.value;
-    final colors = [const Color(0xffedf2e9), const Color(0xfff3eee3), const Color(0xffedf0f4)];
-    return SizedBox(width: c.maxWidth > 700 ? (c.maxWidth - 36) / 3 : c.maxWidth, child: box(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(height: 110, width: double.infinity, decoration: BoxDecoration(color: colors[entry.key], borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.menu_book_rounded, size: 65, color: green)),
-      const SizedBox(height: 18), Text(b['title'], style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
-      Text(b['subtitle'], style: const TextStyle(color: muted)), const SizedBox(height: 14),
-      Text('${(b['pages'] as List).length} صفحة  ·  ${questions.where((q) => q.book == b['id']).length} سؤالًا', style: const TextStyle(color: muted, fontSize: 12)),
-      const Divider(height: 30), Wrap(spacing: 8, children: [FilledButton(onPressed: () => start(bookId: b['id']), child: const Text('ابدأ التعلّم')), TextButton(onPressed: () => sourceDialog(context, b, 1), child: const Text('تصفّح الكتاب'))]),
-    ])));
-  }).toList()));
-  Widget stats() => Padding(padding: const EdgeInsets.symmetric(vertical: 22), child: Wrap(spacing: 14, runSpacing: 14, children: [
-    for (final s in [['3', 'كتب في مكتبتك'], ['${questions.length}', 'سؤالًا لاختبار معرفتك'], ['${attempts.length}', 'تدريبات مكتملة'], ['$accuracy٪', 'الإجابات الصحيحة']]) SizedBox(width: 180, child: box(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(s[0], style: const TextStyle(fontSize: 28, color: green)), Text(s[1], style: const TextStyle(fontSize: 12, color: muted))])))
-  ]));
-  Widget content() {
-    if (tab == 0) return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      heading('أهلًا بك في بصيرة ✧', 'كل يوم فرصة لتعرف أكثر. ماذا سنتعلّم اليوم؟'),
-      box(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('مِن صفحات الكتب، إلى رسوخ المعرفة', style: TextStyle(color: Color(0xffd1dcbf))), const SizedBox(height: 12),
-        const Text('لا تكتفِ بالقراءة… اختبر فهمك.', style: TextStyle(fontSize: 30, color: Colors.white, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 12), const Text('أسئلة من كتبك، وتدريبات متنوعة، وتقييم يساعدك على التقدّم.', style: TextStyle(color: Color(0xffc4d6cd))), const SizedBox(height: 24),
-        Wrap(spacing: 14, children: [FilledButton(style: FilledButton.styleFrom(backgroundColor: const Color(0xffeee2bf), foregroundColor: green), onPressed: () => start(), child: const Text('ابدأ التدريب الآن ←')), OutlinedButton(onPressed: () => go(1), child: const Text('استكشف المكتبة', style: TextStyle(color: Colors.white)))])
-      ]), color: green), stats(), heading('مكتبتك، بداية رحلتك', 'اختر كتابًا، وابدأ ببناء معرفة راسخة'), library(), const SizedBox(height: 28),
-      box(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('تعلّم بالطريقة التي تناسبك', style: TextStyle(fontSize: 21)), const SizedBox(height: 20), Wrap(spacing: 12, runSpacing: 12, children: [for (final e in kinds.entries) OutlinedButton(onPressed: () => start(type: e.key), child: Text(e.value)), FilledButton(onPressed: () => start(exam: true), child: const Text('تحدّي خمس أسئلة'))])]))
-    ]);
-    if (tab == 1) return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [heading('مكتبة الكتب', '110 صفحات من المصادر الأصلية'), library(), const SizedBox(height: 24), box(const Text('هذه نسخة أولية تضم 30 سؤالًا بصياغة تدريبية من المصادر، وليست تحويلًا كاملًا للكتب. النص المستخرج آليًا قد يحتوي على أخطاء عرض. الإجابات تمثل محتوى المراجعات وليست فتاوى مستقلة.'))]);
-    if (tab == 2 || tab == 5) {
-      final filtered = questions.where((q) => (tab != 5 || saved.contains(q.id)) && q.prompt.contains(search) && (bookFilter.isEmpty || q.book == bookFilter) && (typeFilter.isEmpty || q.type == typeFilter));
-      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [heading(labels[tab], 'إجابات مرجعية ومصدر لكل سؤال'), TextField(decoration: const InputDecoration(hintText: 'ابحث عن سؤال…', prefixIcon: Icon(Icons.search)), onChanged: (v) => setState(() => search = v)), const SizedBox(height: 15), Wrap(spacing: 18, children: [
-        DropdownButton<String>(value: bookFilter, items: [const DropdownMenuItem(value: '', child: Text('كل الكتب')), ...books.map((b) => DropdownMenuItem(value: b['id'] as String, child: Text(b['title'])))], onChanged: (v) => setState(() => bookFilter = v!)),
-        DropdownButton<String>(value: typeFilter, items: [const DropdownMenuItem(value: '', child: Text('كل الأنواع')), ...kinds.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))], onChanged: (v) => setState(() => typeFilter = v!))]),
-        if (filtered.isEmpty) const Padding(padding: EdgeInsets.all(40), child: Text('لا توجد أسئلة مطابقة. غيّر البحث أو احفظ سؤالًا أولًا.')),
-        ...filtered.map((q) => Padding(padding: const EdgeInsets.only(top: 14), child: box(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('${book(q.book)['title']} · ${kinds[q.type]} · ص ${q.page}', style: const TextStyle(color: muted, fontSize: 12)), const SizedBox(height: 12), Text(q.prompt, style: const TextStyle(fontSize: 19)), const SizedBox(height: 12), Wrap(spacing: 10, children: [FilledButton(onPressed: () => start(ids: [q.id]), child: const Text('حل السؤال')), IconButton(tooltip: 'حفظ السؤال', onPressed: () => toggle(q.id), icon: Icon(saved.contains(q.id) ? Icons.bookmark : Icons.bookmark_outline)), TextButton(onPressed: () => sourceDialog(context, book(q.book), q.page), child: const Text('عرض المصدر'))])]))))
-      ]);
-    }
-    if (tab == 3) return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [heading('اختبر معرفتك', 'تظهر الإجابات بعد إنهاء الاختبار'), box(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('اختبار مختلط من الكتب الثلاثة', style: TextStyle(fontSize: 22)), const SizedBox(height: 12), const Text('اختيار من متعدد وصح أم خطأ، بتصحيح تلقائي.\nالإجابات القصيرة متاحة في التدريب بتقييم ذاتي.'), const SizedBox(height: 24), Wrap(spacing: 12, runSpacing: 12, children: [for (final n in [5, 10, 20]) FilledButton(onPressed: () => start(exam: true, count: n), child: Text('اختبار $n أسئلة'))])]))]);
-    final wrong = answers.where((a) => a['correct'] == false).map((a) => a['id'] as int).toSet().toList();
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [heading('تقدّمي وإنجازاتي', 'تقدّمك محفوظ محليًا على هذا الجهاز'), stats(), if (wrong.isNotEmpty) FilledButton(onPressed: () => start(ids: wrong, count: wrong.length), child: const Text('مراجعة أسئلة أخطأت فيها')), const SizedBox(height: 24), if (attempts.isEmpty) box(const Text('أكمل أول تدريب ليظهر تقدّمك هنا.')), ...attempts.reversed.map((a) { final list = a['answers'] as List; return Padding(padding: const EdgeInsets.only(bottom: 14), child: box(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('${a['exam'] == true ? 'اختبار المعرفة' : 'تدريب على مهل'}   ${list.where((x) => x['correct'] == true).length} / ${list.length}', style: const TextStyle(fontSize: 19)), Text(a['date'].toString().substring(0, 16), style: const TextStyle(color: muted)), if (list.any((x) => x['self'] == true)) const Text('يتضمن تقييمًا ذاتيًا للإجابات القصيرة', style: TextStyle(fontSize: 12, color: muted))]))); })]);
-  }
-}
-
-Future<void> sourceDialog(BuildContext context, Map<String, dynamic> book, int initial) async {
-  int page = initial;
-  final pages = book['pages'] as List;
-  await showDialog<void>(context: context, builder: (context) => StatefulBuilder(builder: (context, update) => AlertDialog(
-    title: Text('${book['title']} · صفحة $page'),
-    content: SizedBox(width: 650, child: SingleChildScrollView(child: SelectableText((pages[page - 1]['text'] as String).trim().isEmpty ? 'هذه الصفحة بلا نص قابل للاستخراج.' : pages[page - 1]['text'], style: const TextStyle(height: 1.9)))),
-    actions: [TextButton(onPressed: page > 1 ? () => update(() => page--) : null, child: const Text('السابقة')), TextButton(onPressed: page < pages.length ? () => update(() => page++) : null, child: const Text('التالية')), TextButton(onPressed: () => Navigator.pop(context), child: const Text('إغلاق'))],
-  )));
-}
-
-class QuizPage extends StatefulWidget {
-  final List<Question> questions;
-  final List<Map<String, dynamic>> books;
-  final List<int> saved;
-  final Future<void> Function(int) onSave;
-  final bool exam;
-  const QuizPage({super.key, required this.questions, required this.exam, required this.books, required this.saved, required this.onSave});
-  @override
-  State<QuizPage> createState() => _QuizPageState();
-}
-class _QuizPageState extends State<QuizPage> {
-  int index = 0;
-  String? selected;
-  bool revealed = false, finished = false;
-  final answers = <Map<String, dynamic>>[];
-  final controller = TextEditingController();
-  @override
-  void dispose() { controller.dispose(); super.dispose(); }
-  Question get q => widget.questions[index];
-  void check() {
-    if (q.type == 'short') selected = controller.text.trim();
-    if (selected == null || selected!.isEmpty) return;
-    if (widget.exam) { next(selected == q.answer); } else { setState(() => revealed = true); }
-  }
-  void next(bool correct) {
-    answers.add({'id': q.id, 'selected': selected, 'correct': correct, 'self': q.type == 'short'});
-    setState(() {
-      if (index == widget.questions.length - 1) { finished = true; }
-      else { index++; selected = null; revealed = false; controller.clear(); }
-    });
-  }
-  Future<bool> confirmExit() async => await showDialog<bool>(context: context, builder: (c) => AlertDialog(title: const Text('إنهاء التدريب؟'), content: const Text('لن تُحفظ نتيجة التدريب غير المكتمل.'), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('متابعة')), TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('إنهاء'))])) ?? false;
-  void finish() => Navigator.pop(context, {'date': DateTime.now().toIso8601String(), 'exam': widget.exam, 'answers': answers});
-  @override
-  Widget build(BuildContext context) => PopScope(canPop: false, onPopInvokedWithResult: (didPop, result) async { if (didPop) return; if (finished) { finish(); } else if (await confirmExit() && context.mounted) { Navigator.pop(context); } }, child: Scaffold(
-    appBar: AppBar(title: Text(widget.exam ? 'اختبار المعرفة' : 'تدريب على مهل')),
-    body: SingleChildScrollView(padding: const EdgeInsets.all(24), child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 760), child: Container(padding: const EdgeInsets.all(28), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)), child: finished ? resultView() : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Text('${kinds[q.type]}  ·  السؤال ${index + 1} من ${widget.questions.length}', style: const TextStyle(color: muted)), const SizedBox(height: 18), LinearProgressIndicator(value: index / widget.questions.length), const SizedBox(height: 26), Text(q.prompt, style: const TextStyle(fontSize: 25, height: 1.7)), const SizedBox(height: 25),
-      if (q.type == 'short') TextField(controller: controller, enabled: !revealed, maxLines: 4, decoration: const InputDecoration(hintText: 'اكتب إجابتك ثم قارنها بالإجابة المرجعية')) else ...q.options.map((o) => Padding(padding: const EdgeInsets.only(bottom: 12), child: OutlinedButton(style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(20), backgroundColor: selected == o ? const Color(0xffeaf2ed) : null), onPressed: revealed ? null : () => setState(() => selected = o), child: Align(alignment: Alignment.centerRight, child: Text(o))))),
-      if (revealed) Container(margin: const EdgeInsets.symmetric(vertical: 18), padding: const EdgeInsets.all(18), color: const Color(0xffedf4ee), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(q.type == 'short' ? 'قارن إجابتك بالمرجع، ثم قيّم نفسك.' : selected == q.answer ? '✓ أحسنت، إجابتك صحيحة.' : 'تحتاج هذه المعلومة إلى مراجعة.'), Text('الإجابة المرجعية: ${q.answer}', style: const TextStyle(fontSize: 19)), TextButton(onPressed: () => sourceDialog(context, widget.books.firstWhere((b) => b['id'] == q.book), q.page), child: Text('صياغة تدريبية من المصدر · صفحة ${q.page}'))])),
-      const SizedBox(height: 20), Wrap(spacing: 10, runSpacing: 10, children: [if (!revealed) FilledButton(onPressed: q.type != 'short' && selected == null ? null : check, child: Text(widget.exam ? 'تثبيت الإجابة والمتابعة' : 'تحقّق من الإجابة')) else if (q.type == 'short') ...[FilledButton(onPressed: () => next(true), child: const Text('إجابتي صحيحة')), OutlinedButton(onPressed: () => next(false), child: const Text('أحتاج مراجعة'))] else FilledButton(onPressed: () => next(selected == q.answer), child: const Text('متابعة ←')), IconButton(tooltip: 'حفظ السؤال', onPressed: () async { await widget.onSave(q.id); if (mounted) setState(() {}); }, icon: Icon(widget.saved.contains(q.id) ? Icons.bookmark : Icons.bookmark_outline))])
-    ]))))),
-  ));
-  Widget resultView() => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-    const Text('خطوة جديدة تستحق التقدير', textAlign: TextAlign.center, style: TextStyle(fontSize: 26)), const SizedBox(height: 20), Text('${(answers.where((a) => a['correct'] == true).length / answers.length * 100).round()}٪', textAlign: TextAlign.center, style: const TextStyle(fontSize: 64, color: green)),
-    if (answers.any((a) => a['self'] == true)) const Text('تتضمن النتيجة تقييمك الذاتي للإجابات القصيرة.', textAlign: TextAlign.center),
-    ...answers.map((a) { final item = widget.questions.firstWhere((q) => q.id == a['id']); return ListTile(contentPadding: const EdgeInsets.symmetric(vertical: 10), leading: Icon(a['correct'] == true ? Icons.check_circle_outline : Icons.refresh, color: green), title: Text(item.prompt), subtitle: Text('إجابتك: ${a['selected']}\nالإجابة المرجعية: ${item.answer}\nصفحة ${item.page}'), onTap: () => sourceDialog(context, widget.books.firstWhere((b) => b['id'] == item.book), item.page)); }),
-    const SizedBox(height: 20), FilledButton(onPressed: finish, child: const Text('حفظ النتيجة وعرض تقدّمي'))
-  ]);
+  Widget quiz(){if(session!['index']>=(session!['ids'] as List).length)return selfReview();final current=q;final index=session!['index'] as int,total=(session!['ids'] as List).length;return Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:820),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[Text(session!['exam']==true?'اختبار المعرفة':'تدريب على مهل',style:const TextStyle(fontSize:22)),TextButton(onPressed:pause,child:const Text('حفظ وخروج ×'))]),const SizedBox(height:20),panel(Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[Flexible(child:Text(kinds[q.type]!,style:const TextStyle(color:green))),Text('السؤال ${index+1} / $total',style:const TextStyle(color:muted))]),const SizedBox(height:18),LinearProgressIndicator(value:index/total,color:const Color(0xffa3bc79),backgroundColor:const Color(0xffe8edde)),const SizedBox(height:22),Text('${q.section}${pending.contains(q.id)?' · ↺ فرصة ثانية':''}',style:const TextStyle(color:muted,fontSize:12)),if(q.passage!=null)note(q.passage!),const SizedBox(height:15),Text(q.prompt,style:const TextStyle(fontSize:23,height:1.9,fontWeight:FontWeight.w500)),const SizedBox(height:24),if(q.hints.isNotEmpty)...[...q.hints.take(session!['hints']).map(note),OutlinedButton(onPressed:revealed||session!['hints']>=q.hints.length?null:(){setState(()=>session!['hints']++);checkpoint();},child:Text('أحتاج تلميحًا (${session!['hints']}/${q.hints.length})')),const SizedBox(height:16)],controls(),if(revealed)Padding(padding:const EdgeInsets.only(top:22),child:panel(Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Text(q.selfGraded?'قارن فهمك بالمرجع، ثم قيّم نفسك.':evaluateAnswer(q,session!['selected'])?'✓ أحسنت! إجابتك توافق المرجع.':'↺ لا بأس. فرصة أخرى لتثبيت المعلومة.',style:const TextStyle(fontWeight:FontWeight.w600,fontSize:17)),const SizedBox(height:13),Text(q.answer,style:const TextStyle(height:2,fontSize:17)),if(q.explanation.isNotEmpty&&q.explanation!=q.answer)ExpansionTile(title:const Text('فهم أعمق للإجابة'),children:[Text(q.explanation,style:const TextStyle(height:1.9))]),Text('وفق المراجعة · الأسطر ${q.lineStart}–${q.lineEnd}',style:const TextStyle(fontSize:11,color:muted)),if(q.warning.isNotEmpty)note(q.warning)]),color:const Color(0xfff0f5e9))),const SizedBox(height:24),Wrap(spacing:12,runSpacing:10,children:[if(!revealed)...[FilledButton(onPressed:ready?check:null,child:Text(session!['exam']==true?'تثبيت والمتابعة ←':'تحقّق من إجابتي ←')),TextButton(onPressed:(){session!['selected']='لم أعرف الإجابة بعد';next(false,skipped:true);},child:const Text('لا أعرف بعد'))] else if(q.selfGraded)...[FilledButton(onPressed:()=>next(true),child:const Text('إجابتي توافق المرجع ✓')),OutlinedButton(onPressed:()=>next(false),child:const Text('أحتاج مراجعة ↺'))] else FilledButton(onPressed:()=>next(evaluateAnswer(current,session!['selected'])),child:Text(index==total-1?'عرض تقدّمي ←':'السؤال التالي ←')),IconButton(tooltip:'حفظ السؤال',onPressed:()=>toggleSave(q.id),icon:Icon(saved.contains(q.id)?Icons.bookmark:Icons.bookmark_outline))])])),const SizedBox(height:15),const Text('خذ وقتك · الأخطاء محفوظة تلقائيًا · التقييم وفق المرجع',textAlign:TextAlign.center,style:TextStyle(fontSize:11,color:muted))])));}
+  Widget selfReview(){final answers=session!['answers'] as List;final index=answers.indexWhere((a)=>a['correct']==null);if(index<0){WidgetsBinding.instance.addPostFrameCallback((_)=>finishIfReady());return const Center(child:CircularProgressIndicator());}final a=answers[index],item=byId[a['id']]!;return Column(crossAxisAlignment:CrossAxisAlignment.start,children:[heading('خطوة أخيرة: راجع فهمك','هذه إجابة مفتوحة؛ أنت أقدر على تقييم معناها بعد المقارنة.'),panel(Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Text(item.prompt,style:const TextStyle(fontSize:23,height:1.8)),const SizedBox(height:22),const Text('إجابتك',style:TextStyle(color:muted)),Text(formatAnswer(a['selected']),style:const TextStyle(height:2)),note('الإجابة المرجعية:\n${item.answer}'),Wrap(spacing:12,runSpacing:10,children:[FilledButton(onPressed:()=>assess(index,true),child:const Text('إجابتي توافق المرجع ✓')),OutlinedButton(onPressed:()=>assess(index,false),child:const Text('أحتاج مراجعة ↺')),TextButton(onPressed:pause,child:const Text('أكمل التقييم لاحقًا'))])]))]);}
+  Widget resultView(Map<String,dynamic> a){final answers=a['answers'] as List,correct=answers.where((x)=>x['correct']==true).length;return Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[panel(Column(children:[const Icon(Icons.auto_awesome,size:48,color:Color(0xff9eaf71)),const SizedBox(height:20),const Text('خطوة تستحق التقدير.',style:TextStyle(fontSize:28)),Text('${(correct/answers.length*100).round()}٪',style:const TextStyle(fontSize:65,color:green)),Text('$correct إجابات توافق المرجع من ${answers.length}',style:const TextStyle(color:muted)),if(answers.any((x)=>x['self']==true))const Text('تشمل النتيجة تقييمك الذاتي للإجابات المفتوحة.',style:TextStyle(fontSize:12,color:muted)),const SizedBox(height:22),Wrap(spacing:12,runSpacing:12,children:[FilledButton(onPressed:()=>navigate(4),child:const Text('شاهد رحلة تقدّمك ←')),OutlinedButton(onPressed:()=>start(exam:true,count:5),child:const Text('اختبار جديد مع أخطائي'))])])),note('ستعود الأخطاء في الاختبار القادم تلقائيًا. تخرج من قائمة المراجعة بعد إجابتين صحيحتين في جلستين مختلفتين.'),...answers.map((x){final item=byId[x['id']]!;return Padding(padding:const EdgeInsets.only(bottom:14),child:panel(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(x['correct']==true?'✓ توافق المرجع':'↺ أحتاج مراجعة',style:const TextStyle(color:green)),const SizedBox(height:10),Text(item.prompt,style:const TextStyle(fontSize:18,height:1.8)),Text('إجابتك: ${formatAnswer(x['selected'])}',style:const TextStyle(color:muted,height:1.8)),ExpansionTile(title:const Text('الإجابة وشرحها'),children:[Text(item.answer,style:const TextStyle(height:2)),if(item.explanation.isNotEmpty&&item.explanation!=item.answer)Text(item.explanation,style:const TextStyle(height:2))]),TextButton(onPressed:()=>toggleSave(item.id),child:const Text('حفظ السؤال'))])));})]);}
+  Widget progress(){final known=memory.values.where((v)=>v['streak']>=2).length;return Column(crossAxisAlignment:CrossAxisAlignment.start,children:[heading('أثر محاولاتك، أمام عينيك','التقدّم الحقيقي ليس ألّا تخطئ، بل أن تعود وتفهم.'),stats(),panel(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('$known سؤالًا أجبت عنه مرتين بشكل صحيح',style:const TextStyle(fontSize:22)),note('${pending.length} سؤالًا ينتظر فرصة ثانية.'),FilledButton(onPressed:()=>pending.isEmpty?start():start(review:true),child:const Text('ثبّت ما تعلّمته ←'))])),const SizedBox(height:23),panel(Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[const Text('تقدّمك في المسارات',style:TextStyle(fontSize:22)),...topics.map((t){final ids=bank.where((q)=>q.section==t).map((q)=>'${q.id}').toSet(),m=memory.entries.where((e)=>ids.contains(e.key)).toList();final count=m.where((e)=>e.value['streak']>=2).length;return Padding(padding:const EdgeInsets.symmetric(vertical:17),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Text('$t · $count مثبت / ${m.length} تمت تجربته'),const SizedBox(height:10),LinearProgressIndicator(value:m.isEmpty?0:count/m.length,color:const Color(0xffa3bc79),backgroundColor:const Color(0xffe8edde))]));})])),const SizedBox(height:23),panel(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('سجل المحاولات',style:TextStyle(fontSize:22)),if(attempts.isEmpty)note('أول محاولة ستظهر هنا. ننتظرك بخطوة صغيرة.'),...attempts.reversed.take(20).map((a)=>ListTile(contentPadding:const EdgeInsets.symmetric(vertical:8),title:Text(a['exam']==true?'اختبار المعرفة':'تدريب على مهل'),subtitle:Text(a['date'].toString().substring(0,16)),trailing:Text('${(a['answers'] as List).where((x)=>x['correct']==true).length} / ${(a['answers'] as List).length}')))]))]);}
+  Future<void> preferences() async {await showDialog<void>(context:context,builder:(c)=>StatefulBuilder(builder:(c,update){void setting(String key,dynamic value){setState(()=>settings[key]=value);update((){});persist();}return AlertDialog(title:const Text('على مقاس راحتك'),content:SizedBox(width:420,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[SwitchListTile(title:const Text('نص أكبر وأسهل للقراءة'),value:settings['large']==true,onChanged:(v)=>setting('large',v)),SwitchListTile(title:const Text('حركات هادئة وانتقالات ناعمة'),value:settings['motion']==true,onChanged:(v)=>setting('motion',v)),SwitchListTile(title:const Text('وضع التركيز أثناء الحل'),value:settings['focus']==true,onChanged:(v)=>setting('focus',v)),DropdownButton<int>(value:settings['goal'],items:[5,10,15,20].map((n)=>DropdownMenuItem(value:n,child:Text('هدفي اليومي: $n أسئلة'))).toList(),onChanged:(v)=>setting('goal',v!)),note('التدريبات مستخرجة من sorular.txt. التصحيح يقيس موافقة المرجع، وليس توثيقًا لصحة أحكامه أو نقوله. يُحفظ التقدّم على هذا الجهاز فقط.'),Text('${coverage['trainedUnits']??0} وحدة نصية لها تدريبات. تبقى القوالب الفارغة والمقطع النقدي خارج التقييم.',style:const TextStyle(fontSize:12,color:muted))]))),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('تم'))]);}));}
 }

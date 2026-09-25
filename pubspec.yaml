@@ -19,3 +19,12 @@ flutter:
   assets:
     - assets/data/books.json
     - assets/data/questions.json
+    - assets/data/types.json
+    - assets/data/coverage.json
+  fonts:
+    - family: BasiraArabic
+      fonts:
+        - asset: assets/fonts/BasiraArabic-400.ttf
+          weight: 400
+        - asset: assets/fonts/BasiraArabic-600.ttf
+          weight: 600

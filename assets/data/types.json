@@ -1,0 +1,98 @@
+{
+  "choice": {
+    "label": "اختيار من متعدد",
+    "mode": "single"
+  },
+  "single": {
+    "label": "اختيار إجابة واحدة",
+    "mode": "single"
+  },
+  "multiple": {
+    "label": "اختيار عدة إجابات",
+    "mode": "multi"
+  },
+  "boolean": {
+    "label": "صح أو خطأ",
+    "mode": "single"
+  },
+  "blank": {
+    "label": "أكمل الفراغ",
+    "mode": "text"
+  },
+  "short": {
+    "label": "اكتب الإجابة",
+    "mode": "self"
+  },
+  "qa": {
+    "label": "سؤال وجواب",
+    "mode": "self"
+  },
+  "definition": {
+    "label": "تعريف ومصطلح",
+    "mode": "text"
+  },
+  "description": {
+    "label": "وصف واستنتاج",
+    "mode": "self"
+  },
+  "hints": {
+    "label": "تلميحات واستنتاج",
+    "mode": "text"
+  },
+  "cause_effect": {
+    "label": "سبب ونتيجة",
+    "mode": "self"
+  },
+  "effect_cause": {
+    "label": "نتيجة وسبب",
+    "mode": "self"
+  },
+  "comparison": {
+    "label": "مقارنة",
+    "mode": "self"
+  },
+  "order": {
+    "label": "ترتيب",
+    "mode": "order"
+  },
+  "match": {
+    "label": "توصيل / مطابقة",
+    "mode": "match"
+  },
+  "missing_word": {
+    "label": "كلمة ناقصة",
+    "mode": "text"
+  },
+  "passage_question": {
+    "label": "نص وسؤال",
+    "mode": "self"
+  },
+  "read_answer": {
+    "label": "اقرأ وأجب",
+    "mode": "self"
+  },
+  "passage_group": {
+    "label": "عدة أسئلة على نص واحد",
+    "mode": "group"
+  },
+  "correct_word": {
+    "label": "تحديد الكلمة الصحيحة",
+    "mode": "single"
+  },
+  "correct_statement": {
+    "label": "تحديد العبارة الصحيحة",
+    "mode": "single"
+  },
+  "incorrect_statement": {
+    "label": "تحديد العبارة الخاطئة",
+    "mode": "single"
+  },
+  "correction": {
+    "label": "تصحيح العبارة",
+    "mode": "self"
+  },
+  "sentence": {
+    "label": "إكمال الجملة",
+    "mode": "text"
+  }
+}

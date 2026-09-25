@@ -4,3 +4,5 @@ build/
 .flutter-plugins*
 node_modules/
 __pycache__/
+
+.venv/

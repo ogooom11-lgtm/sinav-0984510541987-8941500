@@ -47,4 +47,16 @@ void main(){
     expect(clean['attempts'].length,1);expect(clean['attempts'][0]['answers'].length,1);
     expect(clean['active'],isNull);expect(clean['orders'],isEmpty);
   });
+  test('Stored totals are typed numbers, with safe invalid-value fallbacks',(){
+    final q=bank.firstWhere((q)=>!q.reviewOnly);
+    final cases=<Object?,num>{null:1,'4':1,-3:0,0:0,4:4,2.5:2.5,double.infinity:1,double.nan:1};
+    for(final entry in cases.entries){
+      final clean=engine.sanitizeState({
+        'memory':{'${q.id}':{'wrong':1,'streak':0,'last':1,'total':entry.key}}
+      },bank,[]);
+      expect(clean['memory']['${q.id}']['total'],entry.value);
+      expect(clean['memory']['${q.id}']['total'],isA<num>());
+    }
+  });
+
 }

@@ -75,7 +75,20 @@ class LearningEngine {
     bool eligible(dynamic id)=>bank.containsKey(id)&&!bank[id]!.reviewOnly;
     data['saved']=(data['saved'] is List?data['saved'] as List:[]).where(eligible).toSet().toList();
     final cleaned=<String,dynamic>{};
-    if(data['memory'] is Map){for(final e in (data['memory'] as Map).entries){final v=e.value;if(eligible(int.tryParse(e.key.toString()))&&v is Map&&['wrong','streak','last'].every((k)=>v[k] is int&&v[k]>=0)){cleaned[e.key.toString()]={...v,'total':v['total'] is num?max(0,v['total']):1};}}}
+    if(data['memory'] is Map){
+      for(final e in (data['memory'] as Map).entries){
+        final v=e.value;
+        if(eligible(int.tryParse(e.key.toString()))&&v is Map&&
+            ['wrong','streak','last'].every((k)=>v[k] is int&&v[k]>=0)){
+          // Map lookups remain dynamic; promote a local before calling max<T>.
+          final Object? rawTotal=v['total'];
+          final num total=rawTotal is num&&rawTotal.isFinite
+              ? max<num>(0,rawTotal)
+              : 1;
+          cleaned[e.key.toString()]={...v,'total':total};
+        }
+      }
+    }
     data['memory']=cleaned;
     data['orders']=data['orders'] is Map?Map<String,dynamic>.fromEntries((data['orders'] as Map).entries.where((e)=>eligible(int.tryParse(e.key.toString()))&&e.value is List&&(e.value as List).every((v)=>v is String)).map((e)=>MapEntry(e.key.toString(),e.value))):<String,dynamic>{};
     data['attempts']=(data['attempts'] is List?data['attempts'] as List:[]).where((a)=>a is Map&&a['answers'] is List).map((a)=>{...Map<String,dynamic>.from(a),'date':a['date'] is String?a['date']:'','answers':(a['answers'] as List).where((x)=>x is Map&&(bank.containsKey(x['id'])||retired.contains(x['id']))&&x['correct'] is bool).toList()}).where((a)=>(a['answers'] as List).isNotEmpty).toList();

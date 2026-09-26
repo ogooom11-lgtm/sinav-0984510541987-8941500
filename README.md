@@ -78,7 +78,7 @@ flutter test
 flutter run -d chrome
 ```
 
-ملفات المنصات تولد محليًا. احذف اختبار العداد الافتراضي `test/widget_test.dart` إن أضافه `flutter create`. يتطلب iOS نظام macOS وXcode.
+ملفات المنصات تولد محليًا. يحتوي المستودع على `test/widget_test.dart` خاص بتطبيق `BasiraApp`؛ لا تستبدله باختبار العداد الافتراضي. اسم الحزمة في `pubspec.yaml` هو `basira` حتى لو كان اسم مجلد المشروع `anama`. يتطلب iOS نظام macOS وXcode.
 
 **لم يتم بناء Flutter أو تشغيل `flutter analyze/test`: SDK غير موجود، وفشل الاتصال بخادم تنزيله.** فحص الصياغة بمحلل Dart ليس بديلًا عن التحليل والبناء. لا توجد APK مختبرة.
 

@@ -40,3 +40,10 @@ const m={};for(const q of bank.filter(q=>q.sourceId==='file3'&&q.variant==='modi
 const capped=L.plan(bank,m,{exam:true,count:50,source:'file3',variant:'modified'});assert.equal(capped.length,50);assert.equal(L.pending(m).length,80);
 assert.equal(L.plan(bank,m,{exam:true,count:50,source:'file2',variant:'modified'}).filter(q=>q.sourceId!=='file2').length,0);
 console.log('PASS independent sources and modes, 50-question exams, limited exact notes, overflow mistakes retained');
+const removedTypes=['blank','missing_word','correct_word','correction','sentence'];
+assert(!Object.keys(types).some(k=>removedTypes.includes(k)));
+assert(!bank.some(q=>removedTypes.includes(q.type)));
+assert(!bank.some(q=>q.nativeBlank&&!q.reviewOnly));
+const archived=bank.find(q=>q.nativeBlank),legacy={};L.record(legacy,archived.id,false,'legacy');
+assert.equal(L.plan(bank,legacy,{ids:[archived.id],exam:true,count:1}).length,0);
+console.log('PASS removed types absent from catalog/bank; original completions never replayed');

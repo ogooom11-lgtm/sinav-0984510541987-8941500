@@ -47,7 +47,8 @@ assert all(any(r['lineStart'] <= i <= r['lineEnd'] for r in populated) for i in 
 critical = next(q for q in originals if q['page'] == 176)
 assert critical['reviewOnly'] and critical['warning']
 assert not any(176 in q['sourceBlocks'] for q in questions if q['kind'] == 'adapted')
-assert len(types) == 24
+assert len(types) == 19
+assert not {'blank','missing_word','correct_word','correction','sentence'} & set(types)
 assert len({q['id'] for q in questions}) == len(questions)
 assert {q['type'] for q in all_questions} <= set(types)
 dart_types = (root / 'lib/question_types.dart').read_text()
@@ -141,5 +142,5 @@ assert len({q['id'] for q in all_questions})==len(all_questions)
 assert not any(q['type'] in {'blank','missing_word','sentence'} for q in all_questions if q['variant']=='modified')
 assert not any('___' in json.dumps([q['prompt'],q.get('parts',[])]) for q in all_questions if q['variant']=='modified')
 assert next(q for q in all_questions if q['id']==3000008)['reviewOnly']
-assert set(coverage['retiredQuestionIds']).isdisjoint(q['id'] for q in all_questions)
+assert set(coverage['retiredQuestionIds']).isdisjoint(q['id'] for q in all_questions if not q['reviewOnly'])
 print('OK: both new source files byte-exact; all original cards and adapted evidence verified, no cross-source references')

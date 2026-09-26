@@ -8,7 +8,7 @@ void main() {
   final questions = (jsonDecode(File('assets/data/questions.json').readAsStringSync()) as List)
       .map((q) => Question(q)).toList();
   test('Supported types and independent sources; no retired question IDs', () {
-    expect(kinds.length, 24);
+    expect(kinds.length, 19);
     expect(questions.every((q)=>kinds.containsKey(q.type)),isTrue);
     for (final q in questions) {
       expect(q.page, greaterThan(0));

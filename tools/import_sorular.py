@@ -196,7 +196,7 @@ def build():
         'النص يحوي أخطاء ظاهرة في نقل آيات وأحاديث وألفاظ، وبعض إجابات مركبة وأقوالًا مختلفة. لم تُصحّح تلقائيًا. المقطع 176 محفوظ للقراءة النقدية فقط مع تنبيه، ولا يدخل التدريبات أو التقييم.',
         '', '## توزيع الأنواع']
     types=json.loads((DATA/'types.json').read_text())
-    report += [f"- {types[k]['label']}: {v}" for k,v in counts.items()]
+    report += [f"- {types.get(k, {'label':'نوع ملغى من التدريب'})['label']}: {v}" for k,v in counts.items()]
     report += ['', '## سجل كل المقاطع', '| المقطع | أسطر الملف | الحالة | الأسئلة المرتبطة |', '|---|---|---|---|']
     report += [f"| {r['number']} | {r['lineStart']}–{r['lineEnd']} | {'فارغ؛ لا سؤال مصنوع له' if r['empty'] else 'منقول كاملًا'} | {', '.join(map(str,metadata['blocks'][r['number']-1]['questionIds'])) or '—'} |" for r in records]
     (ROOT/'docs/sorular-coverage.md').write_text('\n'.join(report)+'\n',encoding='utf-8')

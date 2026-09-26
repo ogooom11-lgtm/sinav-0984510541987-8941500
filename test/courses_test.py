@@ -38,9 +38,9 @@ class CourseTest(unittest.TestCase):
     def test_no_synthetic_completion_and_old_ids_retired(self):
         for q in self.bank:
             if q['variant']=='original':continue
-            self.assertNotIn(q['type'],['blank','missing_word','sentence'])
+            self.assertNotIn(q['type'],['blank','missing_word','sentence','correct_word','correction'])
             self.assertNotIn('___',json.dumps([q['prompt'],q.get('parts',[])]))
         meta=json.loads((ROOT/'assets/data/coverage.json').read_text())
-        self.assertEqual(len(meta['retiredQuestionIds']),3792)
-        self.assertTrue(set(meta['retiredQuestionIds']).isdisjoint(q['id'] for q in self.bank))
+        self.assertEqual(len(meta['retiredQuestionIds']),4288)
+        self.assertTrue(set(meta['retiredQuestionIds']).isdisjoint(q['id'] for q in self.bank if not q['reviewOnly']))
 if __name__=='__main__':unittest.main()

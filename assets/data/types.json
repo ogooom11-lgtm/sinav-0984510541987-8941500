@@ -15,10 +15,6 @@
     "label": "صح أو خطأ",
     "mode": "single"
   },
-  "blank": {
-    "label": "أكمل الفراغ",
-    "mode": "text"
-  },
   "short": {
     "label": "اكتب الإجابة",
     "mode": "self"
@@ -59,10 +55,6 @@
     "label": "توصيل / مطابقة",
     "mode": "match"
   },
-  "missing_word": {
-    "label": "كلمة ناقصة",
-    "mode": "text"
-  },
   "passage_question": {
     "label": "نص وسؤال",
     "mode": "self"
@@ -75,10 +67,6 @@
     "label": "عدة أسئلة على نص واحد",
     "mode": "group"
   },
-  "correct_word": {
-    "label": "تحديد الكلمة الصحيحة",
-    "mode": "single"
-  },
   "correct_statement": {
     "label": "تحديد العبارة الصحيحة",
     "mode": "single"
@@ -86,13 +74,5 @@
   "incorrect_statement": {
     "label": "تحديد العبارة الخاطئة",
     "mode": "single"
-  },
-  "correction": {
-    "label": "تصحيح العبارة",
-    "mode": "self"
-  },
-  "sentence": {
-    "label": "إكمال الجملة",
-    "mode": "text"
   }
 }

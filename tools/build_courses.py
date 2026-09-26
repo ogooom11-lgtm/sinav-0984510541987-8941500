@@ -222,10 +222,13 @@ def rebuild():
             q['reviewOnly']=True
             q['excludedReason']='نوع إكمال ملغى بطلب المستخدم؛ النص الأصلي محفوظ للتوثيق فقط'
             if q['id'] not in retired:retired.append(q['id'])
+    from content_quality import apply
+    apply(bank)
+    retired=sorted(set(retired) | {q['id'] for q in bank if q['reviewOnly']})
     old_meta=load('coverage.json')
-    old_meta.update(questionCount=len(bank),bankRevision='basira-studio-v3',retiredQuestionIds=retired,completionPolicy='أُلغيت أنواع الإكمال والكلمة الناقصة وتحديد الكلمة الصحيحة وتصحيح العبارة. أي إكمال أصلي محفوظ للتوثيق فقط.',typeCounts=dict(Counter(q['type'] for q in bank)))
+    old_meta.update(questionCount=len(bank),bankRevision='basira-content-v4',retiredQuestionIds=retired,completionPolicy='أُلغيت أنواع الإكمال والكلمة الناقصة وتحديد الكلمة الصحيحة وتصحيح العبارة. أي إكمال أصلي محفوظ للتوثيق فقط.',typeCounts=dict(Counter(q['type'] for q in bank)))
     sources=[]
-    for sid,title,note,fmt in [('sorular','المراجعة الأساسية — sorular','الأسئلة والأجوبة السابقة، دون إكمال فراغ مولّد.','qa'),('file2','الملف 2 — الدروس الهجائية','هذا الملف شرح بلا أسئلة جاهزة؛ المطابق يعرض عناوينه ونصوصه حرفيًا، وليس أسئلة أصلية.','notes'),('file3','الملف 3 — العقيدة','أسئلة أصلية كما وردت، أو أسئلة تحليلية معدّلة من الملف نفسه.','qa')]:
+    for sid,title,note,fmt in [('sorular','المراجعة الأساسية — sorular','الأسئلة والأجوبة السابقة، دون إكمال فراغ مولّد.','qa'),('file2','الملف 2 — الدروس الهجائية','هذا الملف ملاحظات لا أسئلة؛ النصوص الأصلية خارج الامتحانات. اختر المعدّل للتدريب.','notes'),('file3','الملف 3 — العقيدة','أسئلة أصلية كما وردت، أو أسئلة تحليلية معدّلة من الملف نفسه.','qa')]:
         qs=[q for q in bank if q['sourceId']==sid]
         sources.append(dict(id=sid,file='sorular.txt' if sid=='sorular' else sid[-1]+'.txt',title=title,note=note,format=fmt,originalCount=sum(q['variant']=='original' and not q['reviewOnly'] for q in qs),modifiedCount=sum(q['variant']=='modified' and not q['reviewOnly'] for q in qs),nativeQuestionCount=0 if fmt=='notes' else sum(q['variant']=='original' for q in qs),reviewOnlyCount=sum(q['reviewOnly'] for q in qs)))
     old_meta['sources']=sources;old_meta['sourceFiles']={k:{'file':v['file'],'sha256':v['sha256'],'githubCommit':COMMIT,'recordCount':len(v['records'])} for k,v in source_records.items()}
@@ -235,6 +238,9 @@ def rebuild():
     byid={q['id']:q for q in bank}
     for unit in old_meta.get('units',[]):unit['generatedIds']=[id for id in unit['generatedIds'] if id in byid]
     old_meta['trainedUnits']=sum(bool(u['generatedIds']) for u in old_meta.get('units',[]))
+    old_meta['activeGeneratedUnits']=sum(any(not byid[i]['reviewOnly'] for i in u['generatedIds']) for u in old_meta.get('units',[]))
+    old_meta['unitCoverageMeaning']='تغطية أرشيفية للأسطر لا تعني صلاحيتها للتدريب؛ التوليد السطري مستبعد احترازيًا.'
+    old_meta['qualityReview']={'quarantined':sum(q.get('qualityStatus')=='quarantined' for q in bank),'repairs':sum(bool(q.get('editorialRepair')) for q in bank),'active':sum(not q['reviewOnly'] for q in bank)}
     for b in old_meta.get('blocks',[]):b['questionIds']=[q['id'] for q in bank if q['sourceId']=='sorular' and b['number'] in q['sourceBlocks']]
     old_meta['generatedQuestions']=sum(q['kind']=='generated' for q in bank)
     save('questions.json',bank);save('coverage.json',old_meta);save('sources.json',sources);save('course_sources.json',source_records)
@@ -244,7 +250,7 @@ def rebuild():
         report += ['',f"### تدقيق {src['file']}",f"SHA-256: `{src['sha256']}`",'| المقطع | الأسطر | حالة النقل |','|---|---|---|']
         report += [f"| {r['number']} | {r['lineStart']}–{r['lineEnd']} | {'عنوان تنظيمي بلا جواب؛ محفوظ توثيقيًا' if not r['answer'] else 'مطابق'} |" for r in src['records']]
     (ROOT/'docs/courses-2-3.md').write_text('\n'.join(report)+'\n')
-    old_report=['# تغطية sorular.txt بعد إزالة الإكمال المولّد','',f"البنك النشط لهذا الملف: {sum(q['sourceId']=='sorular' for q in bank)} سجلًا؛ منها 189 مجموعة أصلية خمسة سجلات خارج التدريب (سجل نقدي وأربعة نصوص إكمال أصلية).",'502 وحدة لها نشاط غير إكمال، ووحدتان نقديتان خارج التقييم. الأعداد صيغ تدريب وليست حقائق مستقلة.','', '| المقطع | الأسطر | الحالة | أنشطة نشطة |','|---|---|---|---|']
+    old_report=['# تغطية sorular.txt بعد إزالة الإكمال المولّد','',f"السجلات المؤرشفة والمعدّلة لهذا الملف: {sum(q['sourceId']=='sorular' for q in bank)} سجلًا؛ منها 189 مجموعة أصلية تخضع السجلات لبوابة جودة المحتوى؛ الأرشفة لا تعني إتاحتها للتدريب.",'التوليد السطري محفوظ أرشيفيًا ومستبعد من التدريب؛ راجع coverage.json للأعداد الحالية.','', '| المقطع | الأسطر | الحالة | سجلات موثقة |','|---|---|---|---|']
     for b in old_meta['blocks']:
         old_report.append(f"| {b['number']} | {b['lineStart']}–{b['lineEnd']} | {'فارغ محفوظ؛ بلا سؤال مصطنع' if not b['questionIds'] else 'أصلي كامل محفوظ'} | {len(b['questionIds'])} |")
     (ROOT/'docs/sorular-coverage.md').write_text('\n'.join(old_report)+'\n')

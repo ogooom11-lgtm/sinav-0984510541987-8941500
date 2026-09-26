@@ -2,7 +2,7 @@
   "name": "basira-reference-preview",
   "private": true,
   "scripts": {
-    "test": "node test/learning_test.cjs && node test/preview_test.cjs && node test/migration_test.cjs && node test/audit_engine_test.cjs && node test/audit_preview_test.cjs",
+    "test": "node test/learning_test.cjs && node test/preview_test.cjs && node test/migration_test.cjs && node test/audit_engine_test.cjs && node test/audit_preview_test.cjs && node test/content_quality_test.cjs",
     "preview": "python3 tools/preview_server.py"
   },
   "devDependencies": {

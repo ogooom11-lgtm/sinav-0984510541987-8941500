@@ -3,7 +3,7 @@ const L=require('../preview/learning.js');
 const bank=JSON.parse(fs.readFileSync('assets/data/questions.json','utf8'));
 const types=JSON.parse(fs.readFileSync('assets/data/types.json','utf8'));
 const sample=type=>bank.find(q=>q.type===type&&!q.reviewOnly);
-const memory={};const a=sample('choice'),b=sample('short');
+const memory={};const a=sample('single'),b=sample('short');
 L.record(memory,a.id,false,'first',1);L.record(memory,b.id,false,'first',2);
 assert.equal(L.plan(bank,memory,{exam:true,count:1,section:'موضوع لا يطابق'}).length,0);
 let exam=L.plan(bank,memory,{exam:true,count:2});
@@ -32,12 +32,12 @@ console.log('PASS learning engine: full-bank grading, complete error recall, sam
 
 for(const source of ['file2','file3'])for(const variant of ['original','modified']){
  const scoped=L.plan(bank,memory,{exam:true,count:50,source,variant});
- assert.equal(scoped.length,source==='file2'&&variant==='original'?38:50);
+ assert.equal(scoped.length,Math.min(50,bank.filter(q=>!q.reviewOnly&&q.sourceId===source&&q.variant===variant).length));
  assert(scoped.every(q=>q.sourceId===source&&q.variant===variant));
  assert.equal(new Set(scoped.map(q=>q.id)).size,scoped.length);
 }
 const m={};for(const q of bank.filter(q=>q.sourceId==='file3'&&q.variant==='modified'))L.record(m,q.id,false,'old',q.id);
-const capped=L.plan(bank,m,{exam:true,count:50,source:'file3',variant:'modified'});assert.equal(capped.length,50);assert.equal(L.pending(m).length,80);
+const capped=L.plan(bank,m,{exam:true,count:50,source:'file3',variant:'modified'});assert.equal(capped.length,50);assert.equal(L.pending(m).length,bank.filter(q=>q.sourceId==='file3'&&q.variant==='modified').length);
 assert.equal(L.plan(bank,m,{exam:true,count:50,source:'file2',variant:'modified'}).filter(q=>q.sourceId!=='file2').length,0);
 console.log('PASS independent sources and modes, 50-question exams, limited exact notes, overflow mistakes retained');
 const removedTypes=['blank','missing_word','correct_word','correction','sentence'];

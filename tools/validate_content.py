@@ -94,9 +94,9 @@ for q in all_questions:
 for b in books:
     assert (root / b['file']).is_file()
     assert [p['number'] for p in b['pages']] == list(range(1, len(b['pages']) + 1))
-print(f"OK: {len(originals)} complete original Q/A, {len(questions)-len(originals)} derived activities, {len({q['type'] for q in all_questions})} active types; every source byte and content line accounted for; no legacy questions")
+print(f"OK: {len(originals)} complete original Q/A, {len(questions)-len(originals)} derived activities, {len({q['type'] for q in all_questions})} catalog types; every source byte and content line accounted for; no legacy questions")
 
-# Every trainable answer line is represented by at least one generated activity.
+# Historical line coverage is archival, not a claim of active training coverage.
 assert coverage['learningUnits'] == len(coverage['units']) == 504
 assert coverage['trainedUnits'] == sum(bool(u['generatedIds']) for u in coverage['units']) and coverage['criticalUnits'] == 2
 by_id = {q['id']:q for q in questions}

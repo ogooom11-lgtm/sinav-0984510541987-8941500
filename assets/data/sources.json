@@ -5,21 +5,21 @@
     "title": "المراجعة الأساسية — sorular",
     "note": "الأسئلة والأجوبة السابقة، دون إكمال فراغ مولّد.",
     "format": "qa",
-    "originalCount": 184,
-    "modifiedCount": 3046,
+    "originalCount": 143,
+    "modifiedCount": 51,
     "nativeQuestionCount": 189,
-    "reviewOnlyCount": 5
+    "reviewOnlyCount": 3057
   },
   {
     "id": "file2",
     "file": "2.txt",
     "title": "الملف 2 — الدروس الهجائية",
-    "note": "هذا الملف شرح بلا أسئلة جاهزة؛ المطابق يعرض عناوينه ونصوصه حرفيًا، وليس أسئلة أصلية.",
+    "note": "هذا الملف ملاحظات لا أسئلة؛ النصوص الأصلية خارج الامتحانات. اختر المعدّل للتدريب.",
     "format": "notes",
-    "originalCount": 38,
-    "modifiedCount": 62,
+    "originalCount": 0,
+    "modifiedCount": 50,
     "nativeQuestionCount": 0,
-    "reviewOnlyCount": 0
+    "reviewOnlyCount": 52
   },
   {
     "id": "file3",
@@ -27,9 +27,9 @@
     "title": "الملف 3 — العقيدة",
     "note": "أسئلة أصلية كما وردت، أو أسئلة تحليلية معدّلة من الملف نفسه.",
     "format": "qa",
-    "originalCount": 60,
-    "modifiedCount": 80,
+    "originalCount": 52,
+    "modifiedCount": 69,
     "nativeQuestionCount": 61,
-    "reviewOnlyCount": 1
+    "reviewOnlyCount": 22
   }
 ]

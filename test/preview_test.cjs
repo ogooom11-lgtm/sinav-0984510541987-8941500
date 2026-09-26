@@ -27,7 +27,7 @@ setTimeout(()=>{try{
   $('#checkBtn').click();assert($('.feedback'));$('.quiz-actions .btn').click();assert($('.score'));assert.equal(e('state.attempts.at(-1).answers[0].correct'),true,type);
  }
  assert.equal(e('state.attempts.length'),new Set(bank.filter(q=>!q.reviewOnly).map(q=>q.type)).size);
- const single=bank.find(q=>q.type==='choice');
+ const single=bank.find(q=>q.type==='single'&&!q.reviewOnly&&q.sourceId==='sorular');
  let position=-1;
  for(let i=0;i<8;i++){
   e(`state.active=null;startQuiz({ids:[${single.id}],count:1})`);
@@ -35,7 +35,7 @@ setTimeout(()=>{try{
   const options=JSON.stringify(e('session.options'));e('drawQuiz()');assert.equal(JSON.stringify(e('session.options')),options,'Rerender must not reshuffle during a question');
  }
  // Make an error and exit before completion: it must already be durable.
- const second=bank.find(q=>q.type==='short');
+ const second=bank.find(q=>q.type==='short'&&!q.reviewOnly&&q.sourceId==='sorular');
  e(`state.active=null;startQuiz({ids:[${single.id},${second.id}],count:2})`);
  const first=e('qnow().id');e('skipQuestion()');assert(e('pending()').includes(first));e('pauseQuiz()');assert(JSON.parse(w.localStorage.getItem('basira-learning-v2')).memory[first].wrong>0);
  e('resume()');assert.equal(e('session.index'),1);

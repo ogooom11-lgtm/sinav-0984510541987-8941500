@@ -18,15 +18,15 @@ function answer(q){const m=types[q.type].mode;
 function finishCurrentCorrect(){const q=bank.find(x=>x.id===e('qnow().id'));answer(q);$('#checkBtn').click();if(e('session')&&e('session.index<session.ids.length')){assert($('.feedback'));$('.quiz-actions .btn').click()}return q}
 setTimeout(()=>{try{
  assert($('.hero'));assert.equal($$('nav a').length,6);assert(!$('a[href="#library"]'));assert(!w.document.body.textContent.includes('فتح الملف'));
- e("location.hash='#practice';render()");assert.equal($$('.question-row').length,16);enter($('#search'),'zzzzz');assert.equal($$('.question-row').length,0);enter($('#search'),'');
+ e("location.hash='#practice';render()");assert.equal($$('.question-row').length,16);assert($('#listSource'));assert($('#listVariant'));enter($('#search'),'zzzzz');assert.equal($$('.question-row').length,0);enter($('#search'),'');
  // All 24 UIs, selecting by randomized value rather than the stored index.
- for(const type of Object.keys(types)){
+ for(const type of [...new Set(bank.filter(q=>!q.reviewOnly).map(q=>q.type))]){
   const sample=bank.find(q=>q.type===type&&!q.reviewOnly);
   e(`startQuiz({ids:[${sample.id}],count:1})`);answer(sample);
   const before=JSON.stringify(e('session.selected'));$$('.quiz-actions .text-btn').at(-1).click();assert.equal(JSON.stringify(e('session.selected')),before);
   $('#checkBtn').click();assert($('.feedback'));$('.quiz-actions .btn').click();assert($('.score'));assert.equal(e('state.attempts.at(-1).answers[0].correct'),true,type);
  }
- assert.equal(e('state.attempts.length'),24);
+ assert.equal(e('state.attempts.length'),new Set(bank.filter(q=>!q.reviewOnly).map(q=>q.type)).size);
  const single=bank.find(q=>q.type==='choice');
  let position=-1;
  for(let i=0;i<8;i++){
@@ -42,16 +42,16 @@ setTimeout(()=>{try{
  if($('#answerText')){enter($('#answerText'),'مسودة باقية');e('pauseQuiz();resume()');assert.equal($('#answerText').value,'مسودة باقية')}
  e('pauseQuiz()');
  // Every error, including a self-assessed one, enters the next exam regardless of topic.
- e(`state.active=null;state.memory={};L.record(state.memory,${single.id},false,'wrong',1);L.record(state.memory,${second.id},false,'wrong',2);startQuiz({exam:true,count:1,section:'غير موجود'})`);
+ e(`state.active=null;state.memory={};L.record(state.memory,${single.id},false,'wrong',1);L.record(state.memory,${second.id},false,'wrong',2);startQuiz({exam:true,count:2,source:'sorular',variant:'modified',ids:[${single.id},${second.id}]})`);
  assert.equal(e('session.ids.length'),2);assert(e('session.ids').includes(second.id));
  while(e('session')&&e('session.index<session.ids.length')){const q=bank.find(x=>x.id===e('qnow().id'));answer(q);assert(!$('.feedback'));$('#checkBtn').click()}
  assert($('.self-review'),'Open questions are assessed after the exam, never auto-marked wrong');$('.self-review .btn').click();assert($('.score'));
  assert(e('pending()').includes(single.id),'One success is not yet mastered');
- e(`startQuiz({exam:true,count:1,section:'غير موجود'})`);
+ e(`startQuiz({exam:true,count:2,source:'sorular',variant:'modified',ids:[${single.id},${second.id}]})`);
  while(e('session')&&e('session.index<session.ids.length')){answer(bank.find(x=>x.id===e('qnow().id')));$('#checkBtn').click()}
  $('.self-review .btn').click();assert.equal(e('pending().length'),0);
  // Free text draft, order and checkbox answers survive save/rerender. Settings are persistent.
  e('settings()');assert($('[role=dialog]'));$$('.setting input[type=checkbox]')[0].click();assert(w.document.body.classList.contains('large-text'));$$('.setting input[type=checkbox]')[1].click();assert(w.document.body.classList.contains('reduce-motion'));e('closeModal()');
  e("location.hash='#progress';render()");assert($('#app').textContent.includes('سجل المحاولات'));
- assert.deepEqual(errors,[]);console.log('PASS preview: 24 types, randomized stable options, migration-ready storage, drafts/resume, abandoned-session errors, next-exam recall, deferred self-assessment, mastery, pagination, comfort settings, no book UI');dom.window.close();
+ e("session=null;state.active=null;location.hash='#exam';render()");assert($('#examCount').querySelector('option[value="50"]'));enter($('#examSource'),'file3','change');enter($('#examVariant'),'original','change');$('#examCount').value='50';$('#app .btn').click();assert.equal(e('session.ids.length'),50);assert(e("session.ids.every(id=>byId.get(id).sourceId==='file3'&&byId.get(id).variant==='original')"));assert.deepEqual(errors,[]);console.log('PASS preview: available types, randomized stable options, migration-ready storage, drafts/resume, abandoned-session errors, next-exam recall, deferred self-assessment, mastery, pagination, comfort settings, no book UI');dom.window.close();
 }catch(error){console.error(error);dom.window.close();process.exitCode=1}},150);

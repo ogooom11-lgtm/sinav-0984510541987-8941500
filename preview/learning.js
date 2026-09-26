@@ -11,14 +11,14 @@ function record(memory,id,correct,sessionId,now=Date.now()){
  const streak=correct?(old.lastSession===sessionId?old.streak:old.streak+1):0;
  memory[id]={wrong:old.wrong+(correct?0:1),streak,total:old.total+1,last:now,lastSession:sessionId,due:now+(correct?streak>=2?7:1:0)*86400000};
 }
-function plan(questions,memory,{count=10,section='',type='',exam=false,review=false,ids=null}={},rng=Math.random){
- const eligible=questions.filter(q=>!q.reviewOnly),map=new Map(eligible.map(q=>[q.id,q]));
- // Every unresolved error, even free-text, goes into the very next exam.
+function plan(questions,memory,{count=10,section='',type='',source='',variant='',exam=false,review=false,ids=null}={},rng=Math.random){
+ const eligible=questions.filter(q=>!q.reviewOnly&&(!source||q.sourceId===source)&&(!variant||q.variant===variant)&&(!section||q.section===section)&&(!type||q.type===type)&&(!ids||ids.includes(q.id))),map=new Map(eligible.map(q=>[q.id,q]));
+ // Replay only within the selected source/variant; keep the requested exam size.
  const due=(exam||review)?pending(memory).map(id=>map.get(id)).filter(Boolean):[];
  if(review)return due;
  const pool=shuffle(eligible.filter(q=>(!section||q.section===section)&&(!type||q.type===type)&&(!ids||ids.includes(q.id))),rng);
- const selected=[...due],seen=new Set(selected.map(q=>q.id)),concepts=new Set(selected.map(q=>q.conceptKey||q.id));
- const target=Math.max(count,due.length);
+ const selected=due.slice(0,Math.max(0,count)),seen=new Set(selected.map(q=>q.id)),concepts=new Set(selected.map(q=>q.conceptKey||q.id));
+ const target=Math.max(0,count);
  for(const q of pool){if(selected.length>=target)break;if(!seen.has(q.id)&&!concepts.has(q.conceptKey||q.id)){selected.push(q);seen.add(q.id);concepts.add(q.conceptKey||q.id)}}
  // Small filtered sets can contain several intended variants of the same concept.
  for(const q of pool){if(selected.length>=target)break;if(!seen.has(q.id)){selected.push(q);seen.add(q.id)}}

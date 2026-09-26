@@ -7,12 +7,12 @@ import 'package:basira/question_types.dart';
 void main() {
   final questions = (jsonDecode(File('assets/data/questions.json').readAsStringSync()) as List)
       .map((q) => Question(q)).toList();
-  test('All 24 types are sorular-only; no retired question IDs', () {
+  test('Supported types and independent sources; no retired question IDs', () {
     expect(kinds.length, 24);
-    expect(questions.map((q) => q.type).toSet(), kinds.keys.toSet());
+    expect(questions.every((q)=>kinds.containsKey(q.type)),isTrue);
     for (final q in questions) {
       expect(q.page, greaterThan(0));
-      expect(q.book, 'sorular');
+      expect(['sorular','file2','file3'],contains(q.book));
       expect(q.id, greaterThan(100000));
       expect(q.lineStart, greaterThan(0));
       expect(q.lineEnd, greaterThanOrEqualTo(q.lineStart));

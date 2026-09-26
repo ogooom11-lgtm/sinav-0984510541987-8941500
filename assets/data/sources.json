@@ -1,0 +1,35 @@
+[
+  {
+    "id": "sorular",
+    "file": "sorular.txt",
+    "title": "المراجعة الأساسية — sorular",
+    "note": "الأسئلة والأجوبة السابقة، دون إكمال فراغ مولّد.",
+    "format": "qa",
+    "originalCount": 188,
+    "modifiedCount": 3538,
+    "nativeQuestionCount": 189,
+    "reviewOnlyCount": 1
+  },
+  {
+    "id": "file2",
+    "file": "2.txt",
+    "title": "الملف 2 — الدروس الهجائية",
+    "note": "هذا الملف شرح بلا أسئلة جاهزة؛ المطابق يعرض عناوينه ونصوصه حرفيًا، وليس أسئلة أصلية.",
+    "format": "notes",
+    "originalCount": 38,
+    "modifiedCount": 62,
+    "nativeQuestionCount": 0,
+    "reviewOnlyCount": 0
+  },
+  {
+    "id": "file3",
+    "file": "3.txt",
+    "title": "الملف 3 — العقيدة",
+    "note": "أسئلة أصلية كما وردت، أو أسئلة تحليلية معدّلة من الملف نفسه.",
+    "format": "qa",
+    "originalCount": 60,
+    "modifiedCount": 80,
+    "nativeQuestionCount": 61,
+    "reviewOnlyCount": 1
+  }
+]

@@ -10,7 +10,8 @@ void main(){
     final engine=LearningEngine(Random(17));final memory=<String,dynamic>{};
     final a=bank.firstWhere((q)=>q.type=='choice'),b=bank.firstWhere((q)=>q.type=='short');
     engine.record(memory,a.id,false,'first',now:1);engine.record(memory,b.id,false,'first',now:2);
-    final list=engine.plan(bank,memory,exam:true,count:1,section:'different topic');
+    expect(engine.plan(bank,memory,exam:true,count:1,section:'different topic'),isEmpty);
+    final list=engine.plan(bank,memory,exam:true,count:2);
     expect(list.map((q)=>q.id).toSet(),{a.id,b.id});
     expect(list.length,2);
   });
@@ -19,6 +20,15 @@ void main(){
     e.record(m,id,false,'one');e.record(m,id,true,'two');e.record(m,id,true,'two');
     expect(e.pending(m),contains(id));e.record(m,id,true,'three');expect(e.pending(m),isEmpty);
     e.record(m,id,false,'four');expect(e.pending(m),contains(id));
+  });
+  test('Source and variant isolation with fifty questions',(){
+    final e=LearningEngine();
+    for(final source in ['file2','file3']){for(final variant in ['original','modified']){
+      final list=e.plan(bank,{},exam:true,count:50,source:source,variant:variant);
+      expect(list.length,source=='file2'&&variant=='original'?38:50);
+      expect(list.every((q)=>q.sourceId==source&&q.variant==variant),isTrue);
+      expect(list.map((q)=>q.id).toSet().length,list.length);
+    }}
   });
   test('Shuffling preserves identities and varies identical permutations',(){
     final e=LearningEngine(Random(5));final options=['أ','ب','ج','د'];

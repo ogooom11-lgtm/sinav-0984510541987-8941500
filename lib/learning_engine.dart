@@ -23,14 +23,14 @@ class LearningEngine {
     final timestamp = now ?? DateTime.now().millisecondsSinceEpoch;
     memory['$id'] = {'wrong': old['wrong'] + (correct ? 0 : 1), 'streak': streak, 'total':old['total']+1, 'last':timestamp, 'lastSession':sessionId, 'due':timestamp + (correct ? (streak >= 2 ? 7 : 1) : 0)*86400000};
   }
-  List<Question> plan(List<Question> bank, Map<String,dynamic> memory, {int count=10, String section='', String type='', bool exam=false, bool review=false, List<int>? ids}) {
-    final eligible=bank.where((q)=>!q.reviewOnly).toList();
+  List<Question> plan(List<Question> bank, Map<String,dynamic> memory, {int count=10, String section='', String type='', String source='', String variant='', bool exam=false, bool review=false, List<int>? ids}) {
+    final eligible=bank.where((q)=>!q.reviewOnly&&(source.isEmpty||q.sourceId==source)&&(variant.isEmpty||q.variant==variant)&&(section.isEmpty||q.section==section)&&(type.isEmpty||q.type==type)&&(ids==null||ids.contains(q.id))).toList();
     final map={for(final q in eligible) q.id:q};
     final due=(exam || review) ? pending(memory).where(map.containsKey).map((id)=>map[id]!).toList() : <Question>[];
     if(review) return due;
     final pool=shuffled(eligible.where((q)=>(section.isEmpty || q.section==section)&&(type.isEmpty || q.type==type)&&(ids==null || ids.contains(q.id))));
-    final result=[...due], seen=due.map((q)=>q.id).toSet(), concepts=due.map((q)=>q.conceptKey).toSet();
-    final target=max(count,due.length);
+    final result=due.take(max(0,count)).toList(), seen=due.take(max(0,count)).map((q)=>q.id).toSet(), concepts=due.take(max(0,count)).map((q)=>q.conceptKey).toSet();
+    final target=max(0,count);
     for(final q in pool) { if(result.length>=target) break; if(!seen.contains(q.id)&&!concepts.contains(q.conceptKey)){result.add(q);seen.add(q.id);concepts.add(q.conceptKey);} }
     for(final q in pool) { if(result.length>=target) break; if(seen.add(q.id))result.add(q); }
     return result;

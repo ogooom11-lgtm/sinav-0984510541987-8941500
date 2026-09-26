@@ -5,12 +5,14 @@ class Question {
   final List<int> sourceBlocks;
   final String kind, section, origin, warning, conceptKey, explanation;
   final bool reviewOnly;
-  final String book, type, prompt, answer;
+  final String book, type, prompt, answer, sourceId, sourceFile, variant, originalFormat;
   final List<String> options, accepted, correct, hints;
   final List<Map<String, dynamic>> pairs, parts;
   final String? passage;
+  final List<Map<String,dynamic>> evidence;
   Question(Map<String, dynamic> j)
       : id = j['id'], page = j['page'], book = j['book'], type = j['type'],
+        sourceId=j['sourceId']??j['book'], sourceFile=j['sourceFile']??'sorular.txt', variant=j['variant']??(j['kind']=='verbatim'?'original':'modified'), originalFormat=j['originalFormat']??'',
         lineStart = j['lineStart'] ?? 0, lineEnd = j['lineEnd'] ?? 0,
         sourceBlocks = List<int>.from(j['sourceBlocks'] ?? [j['page']]),
         conceptKey = j['conceptKey'] ?? 'block-${j['page']}',
@@ -24,9 +26,10 @@ class Question {
         hints = List<String>.from(j['hints'] ?? []),
         pairs = List<Map<String, dynamic>>.from(j['pairs'] ?? []),
         parts = List<Map<String, dynamic>>.from(j['parts'] ?? []),
+        evidence=j['evidence'] is List?List<Map<String,dynamic>>.from(j['evidence']):[],
         passage = j['passage'];
-  String get reference => 'sorular.txt · الأسطر $lineStart–$lineEnd';
-  String get provenance => kind == 'verbatim' ? 'منقول كاملًا' : 'نشاط مشتق من النص';
+  String get reference => '$sourceFile · الأسطر ${evidence.isEmpty?"$lineStart–$lineEnd":evidence.map((e)=>"${e['lineStart']}–${e['lineEnd']}").join('، ')}';
+  String get provenance => kind == 'verbatim' ? (originalFormat=='notes'?'نص أصلي مطابق — ليس سؤالًا أصليًا':'سؤال أصلي مطابق') : 'سؤال معدّل من المصدر';
   String get mode => questionModes[type]!;
   bool get selfGraded => mode == 'self';
 }

@@ -38,8 +38,9 @@ class ImportTest(unittest.TestCase):
         self.assertEqual(r['lineEnd'], 7)
 
     def test_regeneration_is_deterministic(self):
-        files = [ROOT/'assets/data'/name for name in ['books.json','questions.json','coverage.json']]
+        files = [ROOT/'assets/data'/name for name in ['books.json','questions.json','coverage.json','sources.json','course_sources.json']]
         files.append(ROOT/'docs/sorular-coverage.md')
+        files.append(ROOT/'docs/courses-2-3.md')
         before = [hashlib.sha256(p.read_bytes()).hexdigest() for p in files]
         sys.path.insert(0,str(ROOT/'tools'))
         from expand_learning import expand

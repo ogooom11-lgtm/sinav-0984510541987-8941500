@@ -17,6 +17,8 @@ assert coverage['sourceLines'] == len(raw.decode('utf-8').splitlines())
 assert books[0]['pages'] == records
 assert ''.join(p['text'] for p in books[0]['pages']).encode('utf-8') == raw
 assert coverage['questionCount'] == len(questions)
+all_questions=questions
+questions=[q for q in all_questions if q['sourceId']=='sorular']
 originals = [q for q in questions if q['kind'] == 'verbatim']
 populated = [r for r in records if not r['empty']]
 assert len(originals) == len(populated) == coverage['importedQuestions'] == 189
@@ -47,12 +49,14 @@ assert critical['reviewOnly'] and critical['warning']
 assert not any(176 in q['sourceBlocks'] for q in questions if q['kind'] == 'adapted')
 assert len(types) == 24
 assert len({q['id'] for q in questions}) == len(questions)
-assert {q['type'] for q in questions} == set(types), 'Every type needs at least one working example'
+assert {q['type'] for q in all_questions} <= set(types)
 dart_types = (root / 'lib/question_types.dart').read_text()
 for key, config in types.items():
     assert f"'{key}': '{config['label']}'" in dart_types
     assert f"'{key}': '{config['mode']}'" in dart_types
-for q in questions:
+for q in all_questions:
+    if q['sourceId']!='sorular':
+        continue
     assert q['book'] in lookup
     assert q['sourceBlocks'] and q['page'] == q['sourceBlocks'][0]
     for n in q['sourceBlocks']:
@@ -89,11 +93,11 @@ for q in questions:
 for b in books:
     assert (root / b['file']).is_file()
     assert [p['number'] for p in b['pages']] == list(range(1, len(b['pages']) + 1))
-print(f"OK: {len(originals)} complete original Q/A, {len(questions)-len(originals)} derived activities, {len(types)} types; every source byte and content line accounted for; no legacy questions")
+print(f"OK: {len(originals)} complete original Q/A, {len(questions)-len(originals)} derived activities, {len({q['type'] for q in all_questions})} active types; every source byte and content line accounted for; no legacy questions")
 
 # Every trainable answer line is represented by at least one generated activity.
 assert coverage['learningUnits'] == len(coverage['units']) == 504
-assert coverage['trainedUnits'] == 502 and coverage['criticalUnits'] == 2
+assert coverage['trainedUnits'] == sum(bool(u['generatedIds']) for u in coverage['units']) and coverage['criticalUnits'] == 2
 by_id = {q['id']:q for q in questions}
 for unit in coverage['units']:
     original = records[unit['block']-1]['answer'].replace('\r\n','\n').splitlines()[unit['line']-1]
@@ -101,9 +105,41 @@ for unit in coverage['units']:
     if unit['reviewOnly']:
         assert not unit['generatedIds']
     else:
-        assert len(unit['generatedIds']) >= 2
+        assert len(unit['generatedIds']) >= 1
         for id in unit['generatedIds']:
             assert by_id[id]['unitKey'] == unit['key']
             assert by_id[id]['evidence'] == original
 assert coverage['generatedQuestions'] == sum(q['kind']=='generated' for q in questions)
-print('OK: 502/502 trainable units have new activities; 2 sensitive source lines explicitly excluded from scoring')
+print('OK: source-unit ledger and removal of generated completions')
+
+from build_courses import qa_records,notes_records
+archive=load('course_sources.json')
+for sid in ['file2','file3']:
+    raw=(root/archive[sid]['file']).read_bytes()
+    assert sha256(raw).hexdigest()==archive[sid]['sha256']
+    assert (archive[sid]['prefix']+''.join(r['text'] for r in archive[sid]['records'])).encode()==raw
+    parsed=notes_records(raw) if sid=='file2' else qa_records(raw)[1]
+    assert parsed==archive[sid]['records']
+    for q in [q for q in all_questions if q['sourceId']==sid]:
+        refs=[parsed[n-1] for n in q['sourceBlocks']]
+        assert q['sourceSha256']==archive[sid]['sha256']
+        assert q['sourceFile']==archive[sid]['file']
+        assert q['lineStart']==min(r['lineStart'] for r in refs)
+        assert q['lineEnd']==max(r['lineEnd'] for r in refs)
+        if q['variant']=='original':
+            assert q['prompt']==refs[0]['prompt'] and q['answer']==refs[0]['answer']
+            assert q['originalFormat']==archive[sid]['format']
+        else:
+            assert q['difficulty']=='متقدم'
+            assert [e['quote'] for e in q['evidence']]==[r['answer'] for r in refs]
+            assert not(sid=='file3' and 8 in q['sourceBlocks'])
+        assert q['type'] in types and q['prompt'] and q['answer']
+        mode=types[q['type']]['mode']
+        if mode=='single':assert q['answer'] in q['options'] and len(set(q['options']))==len(q['options'])
+        if mode in ('multi','order'):assert len(q['correct'])>=2 and set(q['correct'])<=set(q['options'])
+assert len({q['id'] for q in all_questions})==len(all_questions)
+assert not any(q['type'] in {'blank','missing_word','sentence'} for q in all_questions if q['variant']=='modified')
+assert not any('___' in json.dumps([q['prompt'],q.get('parts',[])]) for q in all_questions if q['variant']=='modified')
+assert next(q for q in all_questions if q['id']==3000008)['reviewOnly']
+assert set(coverage['retiredQuestionIds']).isdisjoint(q['id'] for q in all_questions)
+print('OK: both new source files byte-exact; all original cards and adapted evidence verified, no cross-source references')

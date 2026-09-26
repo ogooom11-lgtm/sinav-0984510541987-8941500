@@ -5,9 +5,10 @@ const types=JSON.parse(fs.readFileSync('assets/data/types.json','utf8'));
 const sample=type=>bank.find(q=>q.type===type&&!q.reviewOnly);
 const memory={};const a=sample('choice'),b=sample('short');
 L.record(memory,a.id,false,'first',1);L.record(memory,b.id,false,'first',2);
-let exam=L.plan(bank,memory,{exam:true,count:1,section:'موضوع لا يطابق'});
+assert.equal(L.plan(bank,memory,{exam:true,count:1,section:'موضوع لا يطابق'}).length,0);
+let exam=L.plan(bank,memory,{exam:true,count:2});
 assert.deepEqual(new Set(exam.map(q=>q.id)),new Set([a.id,b.id]));
-assert.equal(exam.length,2,'All mistakes override the requested exam count and topic');
+assert.equal(exam.length,2,'Eligible mistakes have priority within the requested count');
 L.record(memory,a.id,true,'second',3);assert(L.pending(memory).includes(a.id));
 L.record(memory,a.id,true,'second',4);assert(L.pending(memory).includes(a.id),'Cannot master with two responses in the same session');
 L.record(memory,a.id,true,'third',5);assert(!L.pending(memory).includes(a.id));
@@ -28,3 +29,14 @@ for(const q of bank.filter(q=>!q.reviewOnly)){
  assert.equal(L.grade(q,null,mode),false,`${q.id}/null`);
 }
 console.log('PASS learning engine: full-bank grading, complete error recall, same-session guard, mastery/relapse, concept diversity, permutation preservation');
+
+for(const source of ['file2','file3'])for(const variant of ['original','modified']){
+ const scoped=L.plan(bank,memory,{exam:true,count:50,source,variant});
+ assert.equal(scoped.length,source==='file2'&&variant==='original'?38:50);
+ assert(scoped.every(q=>q.sourceId===source&&q.variant===variant));
+ assert.equal(new Set(scoped.map(q=>q.id)).size,scoped.length);
+}
+const m={};for(const q of bank.filter(q=>q.sourceId==='file3'&&q.variant==='modified'))L.record(m,q.id,false,'old',q.id);
+const capped=L.plan(bank,m,{exam:true,count:50,source:'file3',variant:'modified'});assert.equal(capped.length,50);assert.equal(L.pending(m).length,80);
+assert.equal(L.plan(bank,m,{exam:true,count:50,source:'file2',variant:'modified'}).filter(q=>q.sourceId!=='file2').length,0);
+console.log('PASS independent sources and modes, 50-question exams, limited exact notes, overflow mistakes retained');

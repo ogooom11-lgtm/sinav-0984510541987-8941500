@@ -153,5 +153,6 @@ def expand():
         for k,n in coverage['typeCounts'].items():f.write(f'- {k}: {n}\n')
         f.write('\nهذه أنشطة استخراج وتذكّر نصّي، وليست آلاف الأحكام المستقلة أو أسئلة مولدة بتحكيم بشري. بعض الأنواع الأكثر تعقيدًا أقل عددًا لعدم اصطناع علاقات لا يذكرها النص.\n')
     print('Expanded:',len(bank),'records;',len(ledger),'units;',coverage['trainedUnits'],'trained')
-    return coverage
+    from build_courses import rebuild
+    return rebuild()
 if __name__=='__main__':expand()

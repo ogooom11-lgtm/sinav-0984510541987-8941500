@@ -56,7 +56,7 @@ class LearningEngine {
     for(var i=0;i<answers.length;i++){final a=answers[i];if(a is! Map||a['id']!=ids[i]||!(a['correct'] is bool||(a['correct']==null&&s['exam']==true&&bank[a['id']]!.selfGraded)))return false;}
     if(index==ids.length)return true;
     final q=bank[ids[index]]!,m=q.mode;
-    if(s.containsKey('currentRecorded')&&(s['currentRecorded'] is! bool||(s['currentRecorded']==true&&(s['revealed']!=true||s['exam']==true||m=='self'))))return false;
+    if(s.containsKey('currentRecorded')&&(s['currentRecorded'] is! bool||(s['currentRecorded']==true&&(s['revealed']!=true||m=='self'))))return false;
     bool perm(dynamic a,List<dynamic> b)=>a is List&&a.length==b.length&&a.toSet().length==a.length&&a.every(b.contains);
     if(s['options'] is! List||s['hints'] is! int||s['hints']<0||s['hints']>q.hints.length||s['revealed'] is! bool)return false;
     final selected=s['selected'];

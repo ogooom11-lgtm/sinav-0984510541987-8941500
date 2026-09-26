@@ -35,7 +35,7 @@ function validSession(s,map,modes){
  if(!s.answers.every((a,i)=>a&&a.id===s.ids[i]&&(typeof a.correct==='boolean'||(a.correct===null&&s.exam&&modes[map.get(a.id).type].mode==='self'))))return false;
  if(s.index===s.ids.length)return true;
  const q=map.get(s.ids[s.index]),m=modes[q.type].mode;
- if(s.currentRecorded!==undefined&&(typeof s.currentRecorded!=='boolean'||(s.currentRecorded&&(!s.revealed||s.exam||m==='self'))))return false;
+ if(s.currentRecorded!==undefined&&(typeof s.currentRecorded!=='boolean'||(s.currentRecorded&&(!s.revealed||m==='self'))))return false;
  const perm=(a,b)=>Array.isArray(a)&&a.length===b.length&&new Set(a).size===a.length&&a.every(x=>b.includes(x));
  if(!Array.isArray(s.options)||!Number.isInteger(s.hints)||s.hints<0||s.hints>(q.hints||[]).length||typeof s.revealed!=='boolean')return false;
  if(['single','multi'].includes(m)&&!perm(s.options,q.options))return false;

@@ -44,11 +44,11 @@ setTimeout(()=>{try{
  // Every error, including a self-assessed one, enters the next exam regardless of topic.
  e(`state.active=null;state.memory={};L.record(state.memory,${single.id},false,'wrong',1);L.record(state.memory,${second.id},false,'wrong',2);startQuiz({exam:true,count:2,source:'sorular',variant:'modified',ids:[${single.id},${second.id}]})`);
  assert.equal(e('session.ids.length'),2);assert(e('session.ids').includes(second.id));
- while(e('session')&&e('session.index<session.ids.length')){const q=bank.find(x=>x.id===e('qnow().id'));answer(q);assert(!$('.feedback'));$('#checkBtn').click()}
+ while(e('session')&&e('session.index<session.ids.length')){const q=bank.find(x=>x.id===e('qnow().id'));answer(q);$('#checkBtn').click();if(types[q.type].mode!=='self'){assert($('.feedback'));$('.quiz-actions .btn').click()}}
  assert($('.self-review'),'Open questions are assessed after the exam, never auto-marked wrong');$('.self-review .btn').click();assert($('.score'));
  assert(e('pending()').includes(single.id),'One success is not yet mastered');
  e(`startQuiz({exam:true,count:2,source:'sorular',variant:'modified',ids:[${single.id},${second.id}]})`);
- while(e('session')&&e('session.index<session.ids.length')){answer(bank.find(x=>x.id===e('qnow().id')));$('#checkBtn').click()}
+ while(e('session')&&e('session.index<session.ids.length')){const q=bank.find(x=>x.id===e('qnow().id'));answer(q);$('#checkBtn').click();if(types[q.type].mode!=='self'){assert($('.feedback'));$('.quiz-actions .btn').click()}}
  $('.self-review .btn').click();assert.equal(e('pending().length'),0);
  // Free text draft, order and checkbox answers survive save/rerender. Settings are persistent.
  e('settings()');assert($('[role=dialog]'));$$('.setting input[type=checkbox]')[0].click();assert(w.document.body.classList.contains('large-text'));$$('.setting input[type=checkbox]')[1].click();assert(w.document.body.classList.contains('reduce-motion'));e('closeModal()');

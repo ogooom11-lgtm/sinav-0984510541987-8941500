@@ -255,5 +255,7 @@ def rebuild():
         old_report.append(f"| {b['number']} | {b['lineStart']}–{b['lineEnd']} | {'فارغ محفوظ؛ بلا سؤال مصطنع' if not b['questionIds'] else 'أصلي كامل محفوظ'} | {len(b['questionIds'])} |")
     (ROOT/'docs/sorular-coverage.md').write_text('\n'.join(old_report)+'\n')
     print('Courses:',[(s['id'],s['originalCount'],s['modifiedCount']) for s in sources],'; total',len(bank),'; retired',len(retired))
+    from build_lessons import build as build_lessons
+    build_lessons()
     return old_meta
 if __name__=='__main__':rebuild()

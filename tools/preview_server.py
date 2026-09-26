@@ -10,10 +10,10 @@ CACHE={}
 class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         route=unquote(urlsplit(self.path).path)
-        routes={'/':'preview/index.html','/style.css':'preview/style.css','/app.js':'preview/app.js','/learning.js':'preview/learning.js'}
+        routes={'/':'preview/lessons/index.html','/legacy':'preview/index.html','/lessons/engine.js':'preview/lessons/engine.js','/lessons/app.js':'preview/lessons/app.js','/lessons/style.css':'preview/lessons/style.css','/style.css':'preview/style.css','/app.js':'preview/app.js','/learning.js':'preview/learning.js'}
         if route in routes:
             target=ROOT/routes[route]
-        elif route in ['/assets/data/questions.json','/assets/data/types.json','/assets/data/coverage.json'] or route.startswith('/assets/fonts/'):
+        elif route in ['/assets/data/lessons.json','/assets/data/questions.json','/assets/data/types.json','/assets/data/coverage.json'] or route.startswith('/assets/fonts/'):
             target=(ROOT/route.lstrip('/')).resolve()
             if not target.is_relative_to(ROOT/'assets') or (route.startswith('/assets/fonts/') and not target.is_relative_to(ROOT/'assets/fonts')):
                 self.send_error(404);return

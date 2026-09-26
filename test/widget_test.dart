@@ -10,7 +10,7 @@ void main() {
     await tester.pumpWidget(const BasiraApp());
 
     expect(find.byType(BasiraApp), findsOneWidget);
-    expect(find.byType(LearningHome), findsOneWidget);
+    expect(find.byType(LessonsHome), findsOneWidget);
     final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
     expect(app.locale, const Locale('ar'));
     expect(
